@@ -1,0 +1,7 @@
+uploads/
+
+.env
+
+database/myDatabase.db
+
+node_modules/

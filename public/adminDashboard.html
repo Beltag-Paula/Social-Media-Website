@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+    <h1>Admin Dashboard</h1>
+
+    <div>
+        <h3>Pending Approvals</h3>
+        <div id="pendingUsers"></div>
+        
+        <h3>Last Posts</h3>
+        <div id="lastPosts"></div>
+    </div>
+
+    <hr>
+
+    <div>
+        <h3>Active Users</h3>
+        <div id="activeUsers"></div>
+
+        <h3>Banned Users</h3>
+        <div id="bannedUsers"></div>
+    </div>
+
+    <hr>
+
+    <button type="button" id="myProfileButton">Go to profile</button>
+    <button type="button" id="logoutButton">Log out</button>
+
+    <script>
+        // Containers
+        const activeContainer = document.getElementById("activeUsers");
+        const bannedContainer = document.getElementById("bannedUsers");
+        const pendingContainer = document.getElementById("pendingUsers");
+
+        // Logout Logic
+        document.getElementById("logoutButton").addEventListener("click", () => {
+            localStorage.removeItem("token");
+            window.location.href = "/index.html";
+        });
+
+        // Profile Redirect
+        document.getElementById("myProfileButton").addEventListener("click", () => {
+            const token = localStorage.getItem("token");
+            if (!token) {
+                window.location.href = "/index.html";
+            } else {
+                window.location.href = "/profile.html";
+            }
+        });
+
+        // Reusable Function to Build User Rows
+        function renderUser(parent, user) {
+            const div = document.createElement("div");
+            div.id = `user-${user.id}`;
+
+            const name = document.createElement("p");
+            name.innerText = user.username;
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.textContent = "Delete";
+            deleteBtn.onclick = () => deleteUser(user.id);
+
+            const statusSelect = document.createElement("select");
+            statusSelect.innerHTML = `
+                <option value="" disabled selected>Change Status</option>
+                <option value="1">Active</option>
+                <option value="2">Banned</option>
+                <option value="0">Pending</option>
+            `;
+            statusSelect.onchange = (e) => updateStatus(user.id, e.target.value);
+
+            div.appendChild(name);
+            div.appendChild(statusSelect);
+            div.appendChild(deleteBtn);
+            parent.appendChild(div);
+        }
+
+        // Fetching Data
+        async function loadSection(endpoint, container) {
+            try {
+                const response = await fetch(`/api/v1/admin/users/${endpoint}`, {
+                    headers: {
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`
+                    }
+                });
+                const data = await response.json();
+                
+                container.innerHTML = ""; 
+
+                if (data.rows && Array.isArray(data.rows)) {
+                    data.rows.forEach(user => renderUser(container, user));
+                }
+            } catch (err) {
+                console.error("Error loading " + endpoint, err);
+            }
+        }
+
+        // Action: Delete
+        async function deleteUser(id) {
+            if(!confirm("Delete user?")) return;
+            await fetch("/api/v1/admin/users/delete", {
+                method: "DELETE",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${localStorage.getItem("token")}`
+                },
+                body: JSON.stringify({ id })
+            });
+            refreshAll();
+        }
+
+        // Action: Update Status
+        async function updateStatus(id, newStatus) {
+            await fetch("/api/v1/admin/users/status", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${localStorage.getItem("token")}`
+                },
+                body: JSON.stringify({ id, status: newStatus })
+            });
+            refreshAll();
+        }
+
+        function refreshAll() {
+            loadSection("active", activeContainer);
+            loadSection("pending", pendingContainer);
+            loadSection("banned", bannedContainer);
+        }
+
+        // Initial Run
+        refreshAll();
+    </script>
+</body>
+</html>

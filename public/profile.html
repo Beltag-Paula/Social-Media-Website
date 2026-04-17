@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+  <head>
+    <title>My Profile</title>
+    <script>
+      const token = localStorage.getItem("token");
+      if (!token) window.location.href = "index.html";
+    </script>
+  </head>
+  <body>
+    <nav>
+      <a href="home.html">Home Feed</a> |
+      <a href="profile.html">My Profile</a> |
+      <button id="logoutButton">Log out</button>
+    </nav>
+
+    <h1 id="welcomeMessage">Hello USER!</h1>
+
+    <div>
+      <p>Banner:</p>
+      <img id="bannerImg" src="default-banner.jpg" width="400" height="150" />
+      <input type="file" id="bannerInput" accept="image/*" />
+    </div>
+
+    <div>
+      <p>Avatar:</p>
+      <img id="avatarDisplay" src="default-avatar.png" width="100" height="100" />
+      <input type="file" id="avatarInput" accept="image/*" />
+    </div>
+
+    <div>
+      <h3>About Me</h3>
+      <textarea id="bioText" rows="4" cols="50"></textarea>
+      <button id="saveBioBtn">Update Bio</button>
+    </div>
+
+    <div>
+      <h3>Intro Video</h3>
+      <video id="profileVideo" width="400" height="300" controls>
+        <source id="videoSource" src="" type="video/mp4">
+        Your browser does not support the video tag.
+      </video>
+      <p id="noVideoMsg">No video found.</p>
+      <br />
+      <input type="file" id="videoInput" accept="video/*" />
+    </div>
+
+    <script>
+      const API_BASE = "http://localhost:8000/api/v1";
+      const tokenData = localStorage.getItem("token");
+
+      async function fetchProfile() {
+        try {
+          const res = await fetch(`${API_BASE}/profile`, {
+            headers: { Authorization: `Bearer ${tokenData}` },
+          });
+          const data = await res.json();
+          
+          if (data) {
+            document.getElementById("bioText").value = data.bio || "";
+            if (data.avatarPath) document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
+            if (data.bannerPath) document.getElementById("bannerImg").src = `/${data.bannerPath}`;
+            
+            const videoEl = document.getElementById("profileVideo");
+            const sourceEl = document.getElementById("videoSource");
+            const noVidMsg = document.getElementById("noVideoMsg");
+
+            if (data.videoPath) {
+              // UPDATING THE VIDEO CORRECTLY
+              sourceEl.src = `/${data.videoPath}`;
+              videoEl.load(); // This is the most important line for visual playback
+              noVidMsg.innerHTML = "Video loaded: " + data.videoPath;
+            }
+          }
+        } catch (err) {
+          console.error("Fetch error:", err);
+        }
+      }
+
+      // Reusable upload function
+      async function uploadFile(inputElement, fieldName) {
+        const file = inputElement.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append(fieldName, file);
+
+        const res = await fetch(`${API_BASE}/profile/${fieldName}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${tokenData}` },
+          body: formData,
+        });
+
+        if (res.ok) {
+          alert("Uploaded successfully!");
+          fetchProfile();
+        }
+      }
+
+      // Event Bindings
+      document.getElementById("avatarInput").onchange = (e) => uploadFile(e.target, "avatar");
+      document.getElementById("bannerInput").onchange = (e) => uploadFile(e.target, "banner");
+      document.getElementById("videoInput").onchange = (e) => uploadFile(e.target, "video");
+      
+      document.getElementById("saveBioBtn").onclick = async () => {
+        const bio = document.getElementById("bioText").value;
+        await fetch(`${API_BASE}/profile/bio`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenData}` },
+          body: JSON.stringify({ bio }),
+        });
+        alert("Bio Updated!");
+      };
+
+      document.getElementById("logoutButton").onclick = () => {
+        localStorage.removeItem("token");
+        window.location.href = "index.html";
+      };
+
+      fetchProfile();
+    </script>
+  </body>
+</html>

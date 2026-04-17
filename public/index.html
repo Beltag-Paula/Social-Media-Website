@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Social Media Login/Signup</title>
+  </head>
+  <body>
+    <h1>Hello, world!</h1>
+
+    <!-- LOGIN FORM -->
+    <form id="myLoginForm">
+      <div class="container">
+        <label for="loginUsername">Username</label>
+        <input
+          type="text"
+          id="loginUsername"
+          name="username"
+          placeholder="Enter username"
+          autocomplete="username"
+          required
+        />
+
+        <label for="loginPassword">Password</label>
+        <input
+          type="password"
+          id="loginPassword"
+          name="password"
+          placeholder="Enter password"
+          autocomplete="current-password"
+          required
+        />
+
+        <button type="submit">Login</button>
+      </div>
+    </form>
+
+    <!-- SIGNUP FORM -->
+    <form id="mySignupForm">
+      <div class="container">
+        <label for="signupUsername">Username</label>
+        <input
+          type="text"
+          id="signupUsername"
+          name="username"
+          placeholder="Enter username"
+          autocomplete="username"
+          required
+        />
+
+        <label for="signupPassword">Password</label>
+        <input
+          type="password"
+          id="signupPassword"
+          name="password"
+          placeholder="Enter password"
+          autocomplete="new-password"
+          required
+        />
+
+        <label for="signupPasswordRepeat">Repeat Password</label>
+        <input
+          type="password"
+          id="signupPasswordRepeat"
+          name="password-repeat"
+          placeholder="Repeat password"
+          autocomplete="new-password"
+          required
+        />
+
+        <button type="submit">Sign Up</button>
+      </div>
+    </form>
+
+    <script>
+      const API = "http://localhost:8000/api/v1";
+
+      // LOGIN
+document.getElementById("myLoginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+
+    try {
+        const response = await fetch(`${API}/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+        console.log(result);
+
+        if (response.ok && result.token) {
+            // 1. Success: Save token
+            localStorage.setItem("token", result.token);
+
+            // 2. Decode payload to check admin status
+            const payload = JSON.parse(atob(result.token.split(".")[1]));
+
+            // 3. Redirect based on role
+            window.location.href = payload.isAdmin ? "adminDashboard.html" : "profile.html";
+        } else {
+            // 4. Handle Errors (including Bans)
+            if (result.reason) {
+                // If the backend sent a ban reason, show it clearly
+                alert(`ACCESS DENIED: ${result.message}\nReason: ${result.reason}`);
+            } else {
+                alert(result.message || "Login failed");
+            }
+        }
+    } catch (error) {
+        console.error("Fetch error:", error);
+        alert("Connection to server failed.");
+    }
+});
+
+      // SIGNUP
+      document
+        .getElementById("mySignupForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const formData = new FormData(e.target);
+          const data = Object.fromEntries(formData);
+
+          if (data.password !== data["password-repeat"]) {
+            alert("Passwords do not match");
+            return;
+          }
+
+          const response = await fetch(`${API}/signup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              username: data.username,
+              password: data.password,
+            }),
+          });
+
+          const result = await response.json();
+          if (response.status === 201) {
+            alert("Signup successful! Wait for admin approval.");
+          } else {
+            alert(result.message || "Signup failed");
+          }
+        });
+    </script>
+  </body>
+</html>
