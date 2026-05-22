@@ -1,71 +1,90 @@
 <!doctype html>
 <html>
-  <head>
-    <title>Home Feed</title>
-    <script>
-      const token = localStorage.getItem("token");
-      if (!token) window.location.href = "index.html";
-    </script>
-  </head>
-  <body>
-    <nav>
-      <a href="home.html">Home</a> | 
-      <a href="profile.html">My Profile</a>
-    </nav>
 
-    <h1>Latest Posts</h1>
+<head>
+  <title>Home Feed</title>
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "index.html";
+  </script>
+</head>
 
-    <div>
-      <input type="text" id="searchInput" placeholder="Search usernames...">
-      <button id="searchBtn">Search</button>
-      <div id="searchResults"></div>
-    </div>
+<body>
+  <nav>
+    <a href="home.html">Home Feed</a> |
+    <a href="profile.html">My Profile</a> |
 
-    <hr>
+    <input type="text" id="globalSearchInput" placeholder="Search users...">
+    <button onclick="executeGlobalSearch()">Search</button>
+    <div id="globalSearchResults"></div>
 
-    <div id="feedContainer">
-      <p>Loading posts...</p>
-    </div>
+    <button id="logoutButton">Log out</button>
+  </nav>
 
-    <script>
-      const API = "http://localhost:8000/api/v1";
-      const tokenData = localStorage.getItem("token");
+  <h1>Latest Posts</h1>
 
-      async function loadFeed() {
-        const res = await fetch(`${API}/feed`, {
-          headers: { Authorization: `Bearer ${tokenData}` }
-        });
-        const posts = await res.json();
-        const container = document.getElementById("feedContainer");
-        container.innerHTML = "";
+  <hr>
 
-        posts.forEach(post => {
-          const postDiv = document.createElement("div");
-          postDiv.innerHTML = `
+  <div id="feedContainer">
+    <p>Loading posts...</p>
+  </div>
+
+  <script>
+    const API = "http://localhost:8000/api/v1";
+    const tokenData = localStorage.getItem("token");
+
+    async function loadFeed() {
+      const res = await fetch(`${API}/feed`, {
+        headers: { Authorization: `Bearer ${tokenData}` }
+      });
+      const posts = await res.json();
+      const container = document.getElementById("feedContainer");
+      container.innerHTML = "";
+
+      posts.forEach(post => {
+        const postDiv = document.createElement("div");
+        postDiv.innerHTML = `
             <h3>${post.username}</h3>
             <p>${post.body}</p>
             ${post.mediaPath ? `<img src="/${post.mediaPath}" width="300">` : ""}
             <small>${post.createdAt}</small>
             <hr>
           `;
-          container.appendChild(postDiv);
-        });
-      }
+        container.appendChild(postDiv);
+      });
+    }
 
-      document.getElementById("searchBtn").onclick = async () => {
-        const q = document.getElementById("searchInput").value;
-        const res = await fetch(`${API}/search?username=${q}`, {
-          headers: { Authorization: `Bearer ${tokenData}` }
-        });
-        const users = await res.json();
-        const resultsDiv = document.getElementById("searchResults");
-        resultsDiv.innerHTML = "<h4>Results:</h4>";
-        users.forEach(u => {
-          resultsDiv.innerHTML += `<p>${u.username} <button>Follow</button></p>`;
-        });
-      };
+    // document.getElementById("searchBtn").onclick = async () => {
+    //   const q = document.getElementById("searchInput").value;
+    //   const res = await fetch(`${API}/search?username=${q}`, {
+    //     headers: { Authorization: `Bearer ${tokenData}` }
+    //   });
+    //   const users = await res.json();
+    //   const resultsDiv = document.getElementById("searchResults");
+    //   resultsDiv.innerHTML = "<h4>Results:</h4>";
+    //   users.forEach(u => {
+    //     resultsDiv.innerHTML += `<p>${u.username} <button>Follow</button></p>`;
+    //   });
+    // };
 
-      loadFeed();
-    </script>
-  </body>
+    async function executeGlobalSearch() {
+      const q = document.getElementById("globalSearchInput").value;
+      const res = await fetch(`/api/v1/search?username=${q}`, {
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      });
+      const users = await res.json();
+      const resultsDiv = document.getElementById("globalSearchResults");
+      resultsDiv.innerHTML = "";
+
+      users.forEach(u => {
+        const p = document.createElement("p");
+        p.innerHTML = `<a href="profile.html?id=${u.id}">${u.username}</a>`;
+        resultsDiv.appendChild(p);
+      });
+    }
+    loadFeed();
+  </script>
+
+</body>
+
 </html>

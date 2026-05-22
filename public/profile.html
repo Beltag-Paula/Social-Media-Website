@@ -1,123 +1,254 @@
 <!doctype html>
 <html>
-  <head>
-    <title>My Profile</title>
-    <script>
-      const token = localStorage.getItem("token");
-      if (!token) window.location.href = "index.html";
-    </script>
-  </head>
-  <body>
-    <nav>
-      <a href="home.html">Home Feed</a> |
-      <a href="profile.html">My Profile</a> |
-      <button id="logoutButton">Log out</button>
-    </nav>
 
-    <h1 id="welcomeMessage">Hello USER!</h1>
+<head>
+  <title>My Profile</title>
 
-    <div>
-      <p>Banner:</p>
-      <img id="bannerImg" src="default-banner.jpg" width="400" height="150" />
-      <input type="file" id="bannerInput" accept="image/*" />
-    </div>
+  <script>
+    const token = localStorage.getItem("token");
+    if (!token) window.location.href = "index.html";
+  </script>
 
-    <div>
-      <p>Avatar:</p>
-      <img id="avatarDisplay" src="default-avatar.png" width="100" height="100" />
-      <input type="file" id="avatarInput" accept="image/*" />
-    </div>
+</head>
 
-    <div>
-      <h3>About Me</h3>
-      <textarea id="bioText" rows="4" cols="50"></textarea>
-      <button id="saveBioBtn">Update Bio</button>
-    </div>
+<body>
 
-    <div>
-      <h3>Intro Video</h3>
-      <video id="profileVideo" width="400" height="300" controls>
-        <source id="videoSource" src="" type="video/mp4">
-        Your browser does not support the video tag.
-      </video>
-      <p id="noVideoMsg">No video found.</p>
-      <br />
-      <input type="file" id="videoInput" accept="video/*" />
-    </div>
+  <nav>
+    <a href="home.html">Home Feed</a> |
+    <a href="profile.html">My Profile</a> |
 
-    <script>
-      const API_BASE = "http://localhost:8000/api/v1";
-      const tokenData = localStorage.getItem("token");
+    <input type="text" id="globalSearchInput" placeholder="Search users...">
+    <button onclick="executeGlobalSearch()">Search</button>
+    <div id="globalSearchResults"></div>
 
-      async function fetchProfile() {
-        try {
-          const res = await fetch(`${API_BASE}/profile`, {
-            headers: { Authorization: `Bearer ${tokenData}` },
-          });
-          const data = await res.json();
-          
-          if (data) {
-            document.getElementById("bioText").value = data.bio || "";
-            if (data.avatarPath) document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
-            if (data.bannerPath) document.getElementById("bannerImg").src = `/${data.bannerPath}`;
-            
-            const videoEl = document.getElementById("profileVideo");
-            const sourceEl = document.getElementById("videoSource");
-            const noVidMsg = document.getElementById("noVideoMsg");
+    <button id="logoutButton">Log out</button>
+  </nav>
 
-            if (data.videoPath) {
-              // UPDATING THE VIDEO CORRECTLY
-              sourceEl.src = `/${data.videoPath}`;
-              videoEl.load(); // This is the most important line for visual playback
-              noVidMsg.innerHTML = "Video loaded: " + data.videoPath;
-            }
-          }
-        } catch (err) {
-          console.error("Fetch error:", err);
-        }
+  <h1 id="welcomeMessage"></h1>
+
+  <!-- Banner -->
+  <div>
+    <p>Banner:</p>
+    <img id="bannerImg" src="default-banner.jpg" width="400" height="150" />
+    <input type="file" id="bannerInput" accept="image/*" />
+  </div>
+
+  <!-- Avatar -->
+  <div>
+    <p>Avatar:</p>
+    <img id="avatarDisplay" src="default-avatar.png" width="100" height="100" />
+    <input type="file" id="avatarInput" accept="image/*" />
+  </div>
+
+  <!-- Bio -->
+  <div>
+    <h3>About Me</h3>
+    <textarea id="bioText" rows="4" cols="50"></textarea>
+    <button id="saveBioBtn">Update Bio</button>
+  </div>
+
+  <!-- Follow button -->
+  <button id="followBtn">Follow / Unfollow</button>
+
+  <!-- Video -->
+  <div>
+    <h3>Intro Video</h3>
+    <video id="profileVideo" width="400" height="300" controls>
+      <source id="videoSource" src="" type="video/mp4">
+    </video>
+    <p id="noVideoMsg">No video found.</p>
+    <input type="file" id="videoInput" accept="video/*" />
+  </div>
+
+  <!-- Followers -->
+  <div>
+    <h3>Followers</h3>
+    <div id="followersList"></div>
+
+    <h3>Following</h3>
+    <div id="followingList"></div>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:8000/api/v1";
+    const tokenData = localStorage.getItem("token");
+
+    // ===== PROFILE ID FROM URL =====
+    const urlParams = new URLSearchParams(window.location.search);
+    const profileUserId = urlParams.get("id"); // null = own profile
+
+    if (profileUserId) {
+      Array.from(document.querySelectorAll('input[type="file"]')).forEach(el => el.remove());
+      document.getElementById('saveBioBtn').remove();
+    }
+
+    // ===== LOAD PROFILE =====
+    async function fetchProfile() {
+      const url = profileUserId
+        ? `${API_BASE}/profile/${profileUserId}`
+        : `${API_BASE}/profile/me`;
+
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${tokenData}` },
+      });
+
+      const data = await res.json();
+
+      document.getElementById("welcomeMessage").innerText =
+        "Hello " + data.username;
+
+      document.getElementById("bioText").value = data.bio || "";
+
+      if (data.avatarPath)
+        document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
+
+      if (data.bannerPath)
+        document.getElementById("bannerImg").src = `/${data.bannerPath}`;
+
+      const videoEl = document.getElementById("profileVideo");
+      const sourceEl = document.getElementById("videoSource");
+
+      if (data.videoPath) {
+        sourceEl.src = `/${data.videoPath}`;
+        videoEl.load();
+        document.getElementById("noVideoMsg").style.display = "none";
       }
+    }
 
-      // Reusable upload function
-      async function uploadFile(inputElement, fieldName) {
-        const file = inputElement.files[0];
-        if (!file) return;
+    // ===== UPLOAD =====
+    async function uploadFile(input, field) {
+      const file = input.files[0];
+      if (!file) return;
 
-        const formData = new FormData();
-        formData.append(fieldName, file);
+      const formData = new FormData();
+      formData.append(field, file);
 
-        const res = await fetch(`${API_BASE}/profile/${fieldName}`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${tokenData}` },
-          body: formData,
-        });
-
-        if (res.ok) {
-          alert("Uploaded successfully!");
-          fetchProfile();
-        }
-      }
-
-      // Event Bindings
-      document.getElementById("avatarInput").onchange = (e) => uploadFile(e.target, "avatar");
-      document.getElementById("bannerInput").onchange = (e) => uploadFile(e.target, "banner");
-      document.getElementById("videoInput").onchange = (e) => uploadFile(e.target, "video");
-      
-      document.getElementById("saveBioBtn").onclick = async () => {
-        const bio = document.getElementById("bioText").value;
-        await fetch(`${API_BASE}/profile/bio`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tokenData}` },
-          body: JSON.stringify({ bio }),
-        });
-        alert("Bio Updated!");
-      };
-
-      document.getElementById("logoutButton").onclick = () => {
-        localStorage.removeItem("token");
-        window.location.href = "index.html";
-      };
+      await fetch(`${API_BASE}/profile/${field}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${tokenData}` },
+        body: formData,
+      });
 
       fetchProfile();
-    </script>
-  </body>
+    }
+
+    if (document.getElementById("avatarInput")) document.getElementById("avatarInput").onchange =
+      e => uploadFile(e.target, "avatar");
+
+    if (document.getElementById("bannerInput")) document.getElementById("bannerInput").onchange =
+      e => uploadFile(e.target, "banner");
+
+    if (document.getElementById("videoInput")) document.getElementById("videoInput").onchange =
+      e => uploadFile(e.target, "video");
+
+    // ===== BIO =====
+    if (document.getElementById("saveBioBtn")) document.getElementById("saveBioBtn").onclick = async () => {
+      const bio = document.getElementById("bioText").value;
+
+      await fetch(`${API_BASE}/profile/bio`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokenData}`
+        },
+        body: JSON.stringify({ bio }),
+      });
+
+      alert("Bio updated");
+    };
+
+    // ===== FOLLOW SYSTEM =====
+    document.getElementById("followBtn").onclick = async () => {
+      if (!profileUserId) {
+        alert("You cannot follow yourself");
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/follow`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokenData}`
+        },
+        body: JSON.stringify({ userId: profileUserId }),
+      });
+
+      const data = await res.json();
+      alert(data.following ? "Now following" : "Unfollowed");
+    };
+
+    // ===== FOLLOWERS =====
+    async function loadFollowers(userId) {
+      const res = await fetch(`${API_BASE}/followers/${userId}`, {
+        headers: { Authorization: `Bearer ${tokenData}` }
+      });
+
+      const data = await res.json();
+      const container = document.getElementById("followersList");
+
+      container.innerHTML = "";
+
+      data.forEach(user => {
+        container.innerHTML += `
+          <div>
+            <a href="profile.html?id=${user.id}">
+              ${user.username}
+            </a>
+          </div>
+        `;
+      });
+    }
+
+    // ===== FOLLOWING =====
+    async function loadFollowing(userId) {
+      const res = await fetch(`${API_BASE}/following/${userId}`, {
+        headers: { Authorization: `Bearer ${tokenData}` }
+      });
+
+      const data = await res.json();
+      const container = document.getElementById("followingList");
+
+      container.innerHTML = "";
+
+      data.forEach(user => {
+        container.innerHTML += `
+          <div>
+            <a href="profile.html?id=${user.id}">
+              ${user.username}
+            </a>
+          </div>
+        `;
+      });
+    }
+
+    async function executeGlobalSearch() {
+      const q = document.getElementById("globalSearchInput").value;
+      const res = await fetch(`/api/v1/search?username=${q}`, {
+        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      });
+      const users = await res.json();
+      const resultsDiv = document.getElementById("globalSearchResults");
+      resultsDiv.innerHTML = "";
+
+      users.forEach(u => {
+        const p = document.createElement("p");
+        p.innerHTML = `<a href="profile.html?id=${u.id}">${u.username}</a>`;
+        resultsDiv.appendChild(p);
+      });
+    }
+
+    // ===== LOGOUT =====
+    document.getElementById("logoutButton").onclick = () => {
+      localStorage.removeItem("token");
+      window.location.href = "index.html";
+    };
+
+    // ===== INIT =====
+    fetchProfile();
+    loadFollowers(profileUserId || "me");
+    loadFollowing(profileUserId || "me");
+
+  </script>
+</body>
+
 </html>

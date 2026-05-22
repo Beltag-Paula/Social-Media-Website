@@ -13,7 +13,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
   initialize_myDatabase();
 });
 
-/*https://www.drawdb.app/editor/diagrams/b89b6c69-cbb9-42de-96a3-42e45937b93a*/
+
 function initialize_myDatabase() {
   db.serialize(() => {
     // 0 Make sure foreign keys are active
@@ -107,7 +107,7 @@ function initialize_myDatabase() {
       },
     );
 
-    //5th table is content
+    //5th table is content (can have many posts + media)
     db.run(
       `
             CREATE TABLE IF NOT EXISTS content
@@ -118,7 +118,7 @@ function initialize_myDatabase() {
                 mediaID INTEGER,
                 createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (postID) REFERENCES posts (id) ON DELETE CASCADE,
-                FOREIGN KEY (mediaID) REFERENCES media (id) ON DELETE CASCADE
+                FOREIGN KEY (mediaID) REFERENCES media (id) ON DELETE SET NULL
 
             )
             `,
@@ -169,6 +169,19 @@ function initialize_myDatabase() {
     )
     console.log("All tables initialized successfully.");
   });
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS comments
+    (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      userID INTEGER,
+      postID INTEGER,
+      body TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userID) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (postID) REFERENCES posts (id) ON DELETE CASCADE
+    )`)
+
   return db;
 }
 

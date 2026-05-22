@@ -14,6 +14,7 @@ const dashboard = require("./controllers/dashboard.js");
 const upload = require("./controllers/upload"); // Multer with subfolders
 const profile = require("./controllers/profile");
 const feed = require("./controllers/feed.js"); // Added Feed Controller
+const searchU = require("./controllers/searchByUsername.js");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -66,7 +67,7 @@ app.patch(
 );
 
 // 3. Profile
-app.get("/api/v1/profile", authenticateToken, profile.getProfileData);
+app.get("/api/v1/profile/:id", authenticateToken, profile.getProfileData);
 app.post("/api/v1/profile/bio", authenticateToken, profile.updateBio);
 
 // 4. File Uploads (Subfolder logic)
@@ -93,6 +94,16 @@ app.post(
 app.get("/api/v1/feed", authenticateToken, feed.getHomeFeed);
 app.post("/api/v1/like", authenticateToken, feed.toggleLike);
 app.post("/api/v1/comment", authenticateToken, feed.addComment);
+
+
+// 6. Followers
+app.post("/api/v1/follow", authenticateToken, feed.toggleFollow);
+app.get("/api/v1/followers/:id", authenticateToken, feed.getFollowers);
+app.get("/api/v1/following/:id", authenticateToken, feed.getFollowing);
+
+
+// 7. Search filters usernames
+app.get("/api/v1/search", authenticateToken, searchU.searchUsername);
 
 app.use((request, response) => {
   response.sendFile(path.join(publicPath, "index.html"));

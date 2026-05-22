@@ -1,17 +1,29 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Admin Dashboard</title>
 </head>
+
+<script src="js/search.js"></script>
+
+
 <body>
+    <nav>
+        <a href="home.html">Home Feed</a> |
+        <a href="profile.html">My Profile</a> |
+
+        <input type="text" id="globalSearchInput" placeholder="Search users...">
+        <button onclick="executeGlobalSearch()">Search</button>
+        <div id="globalSearchResults"></div>
+
+        <button id="logoutButton">Log out</button>
+    </nav>
     <h1>Admin Dashboard</h1>
 
     <div>
         <h3>Pending Approvals</h3>
         <div id="pendingUsers"></div>
-        
-        <h3>Last Posts</h3>
-        <div id="lastPosts"></div>
     </div>
 
     <hr>
@@ -19,7 +31,9 @@
     <div>
         <h3>Active Users</h3>
         <div id="activeUsers"></div>
+    </div>
 
+    <div>
         <h3>Banned Users</h3>
         <div id="bannedUsers"></div>
     </div>
@@ -59,22 +73,43 @@
             const name = document.createElement("p");
             name.innerText = user.username;
 
+            const statusText = document.createElement("p");
+            statusText.innerText = `Status: ${user.status}`;
+
+            const reasonText = document.createElement("p");
+            reasonText.innerText = user.banReason ? `Ban reason: ${user.banReason}` : "";
+
             const deleteBtn = document.createElement("button");
             deleteBtn.textContent = "Delete";
             deleteBtn.onclick = () => deleteUser(user.id);
 
             const statusSelect = document.createElement("select");
             statusSelect.innerHTML = `
-                <option value="" disabled selected>Change Status</option>
-                <option value="1">Active</option>
-                <option value="2">Banned</option>
-                <option value="0">Pending</option>
-            `;
-            statusSelect.onchange = (e) => updateStatus(user.id, e.target.value);
+        <option value="" disabled selected>Change Status</option>
+        <option value="1">Active</option>
+        <option value="2">Banned</option>
+        <option value="0">Pending</option>
+    `;
+
+            statusSelect.onchange = async (e) => {
+                const newStatus = e.target.value;
+
+                let banReason = null;
+
+                // ask reason ONLY if banning
+                if (newStatus == "2") {
+                    banReason = prompt("Enter ban reason:");
+                }
+
+                await updateStatus(user.id, newStatus, banReason);
+            };
 
             div.appendChild(name);
+            div.appendChild(statusText);
+            div.appendChild(reasonText);
             div.appendChild(statusSelect);
             div.appendChild(deleteBtn);
+
             parent.appendChild(div);
         }
 
@@ -87,8 +122,8 @@
                     }
                 });
                 const data = await response.json();
-                
-                container.innerHTML = ""; 
+
+                container.innerHTML = "";
 
                 if (data.rows && Array.isArray(data.rows)) {
                     data.rows.forEach(user => renderUser(container, user));
@@ -100,28 +135,52 @@
 
         // Action: Delete
         async function deleteUser(id) {
-            if(!confirm("Delete user?")) return;
-            await fetch("/api/v1/admin/users/delete", {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
-                body: JSON.stringify({ id })
-            });
-            refreshAll();
+            if (!confirm("Delete user?")) return;
+
+            try {
+                const res = await fetch("/api/v1/admin/users/delete", {
+                    method: "DELETE",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${localStorage.getItem("token")}`
+                    },
+                    body: JSON.stringify({ id })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                    alert(data.message); // <-- THIS shows backend error message from the backend
+                    return;
+                }
+
+                alert(data.message); // "User deleted"
+                refreshAll();
+
+            } catch (err) {
+                console.error(err);
+                alert("Network error");
+            }
         }
 
         // Action: Update Status
-        async function updateStatus(id, newStatus) {
-            await fetch("/api/v1/admin/users/status", {
+        async function updateStatus(id, status, banReason = null) {
+            const res = await fetch("/api/v1/admin/users/status", {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${localStorage.getItem("token")}`
                 },
-                body: JSON.stringify({ id, status: newStatus })
+                body: JSON.stringify({ id, status, banReason })
             });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(data.message);
+                return;
+            }
+
             refreshAll();
         }
 
@@ -131,8 +190,25 @@
             loadSection("banned", bannedContainer);
         }
 
+        async function executeGlobalSearch() {
+            const q = document.getElementById("globalSearchInput").value;
+            const res = await fetch(`/api/v1/search?username=${q}`, {
+                headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+            });
+            const users = await res.json();
+            const resultsDiv = document.getElementById("globalSearchResults");
+            resultsDiv.innerHTML = "";
+
+            users.forEach(u => {
+                const p = document.createElement("p");
+                p.innerHTML = `<a href="profile.html?id=${u.id}">${u.username}</a>`;
+                resultsDiv.appendChild(p);
+            });
+        }
         // Initial Run
         refreshAll();
     </script>
+
 </body>
+
 </html>
