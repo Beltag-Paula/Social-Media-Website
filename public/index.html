@@ -2,138 +2,146 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Social Media Login/Signup</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Board</title>
+    <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
-    <h1>Enter at your own risk!</h1>
+    <div class="auth-wrap">
+      <h1>The Board — enter at your own risk</h1>
 
-    <!-- LOGIN FORM -->
-    <form id="myLoginForm">
-      <div class="container">
-        <label for="loginUsername">Username</label>
-        <input
-          type="text"
-          id="loginUsername"
-          name="username"
-          placeholder="Enter username"
-          autocomplete="username"
-          required
-        />
+      <!-- LOGIN FORM -->
+      <div class="auth-card">
+        <h2>Log in</h2>
+        <form id="myLoginForm">
+          <div class="container">
+            <div>
+              <label for="loginUsername">Username</label>
+              <input
+                type="text"
+                id="loginUsername"
+                name="username"
+                placeholder="Enter username"
+                autocomplete="username"
+                required
+              />
+            </div>
 
-        <label for="loginPassword">Password</label>
-        <input
-          type="password"
-          id="loginPassword"
-          name="password"
-          placeholder="Enter password"
-          autocomplete="current-password"
-          required
-        />
+            <div>
+              <label for="loginPassword">Password</label>
+              <input
+                type="password"
+                id="loginPassword"
+                name="password"
+                placeholder="Enter password"
+                autocomplete="current-password"
+                required
+              />
+            </div>
 
-        <button type="submit">Login</button>
+            <button type="submit">Log in</button>
+          </div>
+        </form>
       </div>
-    </form>
 
-    <!-- SIGNUP FORM -->
-    <form id="mySignupForm">
-      <div class="container">
-        <label for="signupUsername">Username</label>
-        <input
-          type="text"
-          id="signupUsername"
-          name="username"
-          placeholder="Enter username"
-          autocomplete="username"
-          required
-        />
+      <!-- SIGNUP FORM -->
+      <div class="auth-card">
+        <h2>Sign up</h2>
+        <form id="mySignupForm">
+          <div class="container">
+            <div>
+              <label for="signupUsername">Username</label>
+              <input
+                type="text"
+                id="signupUsername"
+                name="username"
+                placeholder="Enter username"
+                autocomplete="username"
+                required
+              />
+            </div>
 
-        <label for="signupPassword">Password</label>
-        <input
-          type="password"
-          id="signupPassword"
-          name="password"
-          placeholder="Enter password"
-          autocomplete="new-password"
-          required
-        />
+            <div>
+              <label for="signupPassword">Password</label>
+              <input
+                type="password"
+                id="signupPassword"
+                name="password"
+                placeholder="Enter password"
+                autocomplete="new-password"
+                required
+              />
+            </div>
 
-        <label for="signupPasswordRepeat">Repeat Password</label>
-        <input
-          type="password"
-          id="signupPasswordRepeat"
-          name="password-repeat"
-          placeholder="Repeat password"
-          autocomplete="new-password"
-          required
-        />
+            <div>
+              <label for="signupPasswordRepeat">Repeat password</label>
+              <input
+                type="password"
+                id="signupPasswordRepeat"
+                name="password-repeat"
+                placeholder="Repeat password"
+                autocomplete="new-password"
+                required
+              />
+            </div>
 
-        <button type="submit">Sign Up</button>
+            <button type="submit">Sign up</button>
+          </div>
+        </form>
       </div>
-    </form>
+    </div>
 
     <script>
-      const API = "http://localhost:8000/api/v1";
+      const API = "/api/v1";
 
       // LOGIN
-document.getElementById("myLoginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData);
+      document.getElementById("myLoginForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
 
-    try {
-        const response = await fetch(`${API}/login`, {
+        try {
+          const response = await fetch(`${API}/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
+            credentials: "include", // lets the browser store the httpOnly cookie the server sets
             body: JSON.stringify(data),
-        });
+          });
 
-        const result = await response.json();
-        console.log(result);
+          const result = await response.json();
 
-        if (response.ok && result.token) {
-            // 1. Success: Save token
-            localStorage.setItem("token", result.token);
-
-            // 2. Decode payload to check admin status
-            const payload = JSON.parse(atob(result.token.split(".")[1]));
-
-            // 3. Redirect based on role
-            window.location.href = payload.isAdmin ? "adminDashboard.html" : "profile.html";
-        } else {
-            // 4. Handle Errors (including Bans)
-            if (result.reason) {
-                // If the backend sent a ban reason, show it clearly
-                alert(`ACCESS DENIED: ${result.message}\nReason: ${result.reason}`);
-            } else {
-                alert(result.message || "Login failed");
-            }
+          if (response.ok) {
+            // The token itself lives in an httpOnly cookie now and can't be
+            // read here — the server tells us directly whether to route to
+            // the admin dashboard or a regular profile.
+            window.location.href = result.isAdmin ? "adminDashboard.html" : "profile.html";
+          } else if (result.reason) {
+            alert(`ACCESS DENIED: ${result.message}\nReason: ${result.reason}`);
+          } else {
+            alert(result.message || "Login failed");
+          }
+        } catch (error) {
+          console.error("Fetch error:", error);
+          alert("Connection to server failed.");
         }
-    } catch (error) {
-        console.error("Fetch error:", error);
-        alert("Connection to server failed.");
-    }
-});
+      });
 
       // SIGNUP
-      document
-        .getElementById("mySignupForm")
-        .addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const formData = new FormData(e.target);
-          const data = Object.fromEntries(formData);
+      document.getElementById("mySignupForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData);
 
-          if (data.password !== data["password-repeat"]) {
-            alert("Passwords do not match");
-            return;
-          }
+        if (data.password !== data["password-repeat"]) {
+          alert("Passwords do not match");
+          return;
+        }
 
+        try {
           const response = await fetch(`${API}/signup`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              username: data.username,
-              password: data.password,
-            }),
+            body: JSON.stringify({ username: data.username, password: data.password }),
           });
 
           const result = await response.json();
@@ -142,7 +150,11 @@ document.getElementById("myLoginForm").addEventListener("submit", async (e) => {
           } else {
             alert(result.message || "Signup failed");
           }
-        });
+        } catch (error) {
+          console.error("Fetch error:", error);
+          alert("Connection to server failed.");
+        }
+      });
     </script>
   </body>
 </html>

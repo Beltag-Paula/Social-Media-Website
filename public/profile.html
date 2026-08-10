@@ -2,76 +2,72 @@
 <html>
 
 <head>
-  <title>My Profile</title>
-
-  <script>
-    const token = localStorage.getItem("token");
-    if (!token) window.location.href = "index.html";
-  </script>
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Profile — The Board</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 
 <body>
 
-  <nav>
-    <a href="home.html">Home Feed</a> |
-    <a href="profile.html">My Profile</a> |
-
-    <input type="text" id="globalSearchInput" placeholder="Search users...">
-    <button onclick="executeGlobalSearch()">Search</button>
-    <div id="globalSearchResults"></div>
-
-    <button id="logoutButton">Log out</button>
+  <nav class="board-nav">
+    <a href="home.html">Home Feed</a>
+    <a href="profile.html">My Profile</a>
+    <div class="search-group">
+      <input type="text" id="globalSearchInput" placeholder="Search users…">
+      <button onclick="executeGlobalSearch()">Search</button>
+      <div id="globalSearchResults"></div>
+    </div>
+    <button class="ghost" id="logoutButton">Log out</button>
   </nav>
 
-  <h1 id="welcomeMessage"></h1>
+  <div class="page">
+    <div class="profile-banner">
+      <img id="bannerImg" src="default-banner.jpg" alt="Profile banner" />
+    </div>
 
-  <!-- Banner -->
-  <div>
-    <p>Banner:</p>
-    <img id="bannerImg" src="default-banner.jpg" width="400" height="150" />
-    <input type="file" id="bannerInput" accept="image/*" />
-  </div>
+    <div class="profile-header">
+      <div class="avatar-wrap">
+        <img id="avatarDisplay" class="avatar" src="default-avatar.png" alt="Avatar" />
+      </div>
+      <h1 id="welcomeMessage"></h1>
+      <input type="file" id="bannerInput" accept="image/*" title="Change banner" />
+      <input type="file" id="avatarInput" accept="image/*" title="Change avatar" />
+    </div>
 
-  <!-- Avatar -->
-  <div>
-    <p>Avatar:</p>
-    <img id="avatarDisplay" src="default-avatar.png" width="100" height="100" />
-    <input type="file" id="avatarInput" accept="image/*" />
-  </div>
+    <div class="field-block">
+      <h3>About me</h3>
+      <textarea id="bioText" rows="4"></textarea>
+      <br /><br />
+      <button id="saveBioBtn">Update bio</button>
+    </div>
 
-  <!-- Bio -->
-  <div>
-    <h3>About Me</h3>
-    <textarea id="bioText" rows="4" cols="50"></textarea>
-    <button id="saveBioBtn">Update Bio</button>
-  </div>
+    <button id="followBtn">Follow / Unfollow</button>
+    <br /><br />
 
-  <!-- Follow button -->
-  <button id="followBtn">Follow / Unfollow</button>
+    <div class="field-block">
+      <h3>Intro video</h3>
+      <video id="profileVideo" width="100%" controls>
+        <source id="videoSource" src="" type="video/mp4">
+      </video>
+      <p id="noVideoMsg">No video found.</p>
+      <input type="file" id="videoInput" accept="video/*" />
+    </div>
 
-  <!-- Video -->
-  <div>
-    <h3>Intro Video</h3>
-    <video id="profileVideo" width="400" height="300" controls>
-      <source id="videoSource" src="" type="video/mp4">
-    </video>
-    <p id="noVideoMsg">No video found.</p>
-    <input type="file" id="videoInput" accept="video/*" />
-  </div>
-
-  <!-- Followers -->
-  <div>
-    <h3>Followers</h3>
-    <div id="followersList"></div>
-
-    <h3>Following</h3>
-    <div id="followingList"></div>
+    <div class="people-columns">
+      <div class="field-block">
+        <h3>Followers</h3>
+        <div id="followersList"></div>
+      </div>
+      <div class="field-block">
+        <h3>Following</h3>
+        <div id="followingList"></div>
+      </div>
+    </div>
   </div>
 
   <script>
-    const API_BASE = "http://localhost:8000/api/v1";
-    const tokenData = localStorage.getItem("token");
+    const API_BASE = "/api/v1";
 
     // ===== PROFILE ID FROM URL =====
     const urlParams = new URLSearchParams(window.location.search);
@@ -88,22 +84,20 @@
         ? `${API_BASE}/profile/${profileUserId}`
         : `${API_BASE}/profile/me`;
 
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${tokenData}` },
-      });
+      const res = await fetch(url, { credentials: "include" });
+
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = "index.html";
+        return;
+      }
 
       const data = await res.json();
 
-      document.getElementById("welcomeMessage").innerText =
-        "Hello " + data.username;
-
+      document.getElementById("welcomeMessage").textContent = "Hello " + data.username;
       document.getElementById("bioText").value = data.bio || "";
 
-      if (data.avatarPath)
-        document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
-
-      if (data.bannerPath)
-        document.getElementById("bannerImg").src = `/${data.bannerPath}`;
+      if (data.avatarPath) document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
+      if (data.bannerPath) document.getElementById("bannerImg").src = `/${data.bannerPath}`;
 
       const videoEl = document.getElementById("profileVideo");
       const sourceEl = document.getElementById("videoSource");
@@ -123,39 +117,42 @@
       const formData = new FormData();
       formData.append(field, file);
 
-      await fetch(`${API_BASE}/profile/${field}`, {
+      const res = await fetch(`${API_BASE}/profile/${field}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${tokenData}` },
+        credentials: "include",
         body: formData,
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || "Upload failed");
+        return;
+      }
 
       fetchProfile();
     }
 
-    if (document.getElementById("avatarInput")) document.getElementById("avatarInput").onchange =
-      e => uploadFile(e.target, "avatar");
-
-    if (document.getElementById("bannerInput")) document.getElementById("bannerInput").onchange =
-      e => uploadFile(e.target, "banner");
-
-    if (document.getElementById("videoInput")) document.getElementById("videoInput").onchange =
-      e => uploadFile(e.target, "video");
+    if (document.getElementById("avatarInput"))
+      document.getElementById("avatarInput").onchange = e => uploadFile(e.target, "avatar");
+    if (document.getElementById("bannerInput"))
+      document.getElementById("bannerInput").onchange = e => uploadFile(e.target, "banner");
+    if (document.getElementById("videoInput"))
+      document.getElementById("videoInput").onchange = e => uploadFile(e.target, "video");
 
     // ===== BIO =====
-    if (document.getElementById("saveBioBtn")) document.getElementById("saveBioBtn").onclick = async () => {
-      const bio = document.getElementById("bioText").value;
+    if (document.getElementById("saveBioBtn"))
+      document.getElementById("saveBioBtn").onclick = async () => {
+        const bio = document.getElementById("bioText").value;
 
-      await fetch(`${API_BASE}/profile/bio`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokenData}`
-        },
-        body: JSON.stringify({ bio }),
-      });
+        await fetch(`${API_BASE}/profile/bio`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bio }),
+        });
 
-      alert("Bio updated");
-    };
+        alert("Bio updated");
+      };
 
     // ===== FOLLOW SYSTEM =====
     document.getElementById("followBtn").onclick = async () => {
@@ -166,10 +163,8 @@
 
       const res = await fetch(`${API_BASE}/follow`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokenData}`
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: profileUserId }),
       });
 
@@ -177,69 +172,49 @@
       alert(data.following ? "Now following" : "Unfollowed");
     };
 
-    // ===== FOLLOWERS =====
-    async function loadFollowers(userId) {
-      const res = await fetch(`${API_BASE}/followers/${userId}`, {
-        headers: { Authorization: `Bearer ${tokenData}` }
-      });
-
-      const data = await res.json();
-      const container = document.getElementById("followersList");
-
-      container.innerHTML = "";
-
-      data.forEach(user => {
-        container.innerHTML += `
-          <div>
-            <a href="profile.html?id=${user.id}">
-              ${user.username}
-            </a>
-          </div>
-        `;
-      });
+    // BUG FIX: these two lists used to build rows with innerHTML +=
+    // raw user.username, so a malicious username could inject a
+    // <script> tag that runs for everyone who views this profile
+    // (stored XSS). Building nodes with textContent avoids that.
+    function renderPersonRow(container, user) {
+      const div = document.createElement("div");
+      const a = document.createElement("a");
+      a.href = `profile.html?id=${encodeURIComponent(user.id)}`;
+      a.textContent = user.username;
+      div.appendChild(a);
+      container.appendChild(div);
     }
 
-    // ===== FOLLOWING =====
-    async function loadFollowing(userId) {
-      const res = await fetch(`${API_BASE}/following/${userId}`, {
-        headers: { Authorization: `Bearer ${tokenData}` }
-      });
+    async function loadFollowers(userId) {
+      const res = await fetch(`${API_BASE}/followers/${userId}`, { credentials: "include" });
+      const data = await res.json();
+      const container = document.getElementById("followersList");
+      container.innerHTML = "";
+      data.forEach(user => renderPersonRow(container, user));
+    }
 
+    async function loadFollowing(userId) {
+      const res = await fetch(`${API_BASE}/following/${userId}`, { credentials: "include" });
       const data = await res.json();
       const container = document.getElementById("followingList");
-
       container.innerHTML = "";
-
-      data.forEach(user => {
-        container.innerHTML += `
-          <div>
-            <a href="profile.html?id=${user.id}">
-              ${user.username}
-            </a>
-          </div>
-        `;
-      });
+      data.forEach(user => renderPersonRow(container, user));
     }
 
     async function executeGlobalSearch() {
       const q = document.getElementById("globalSearchInput").value;
-      const res = await fetch(`/api/v1/search?username=${q}`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      const res = await fetch(`${API_BASE}/search?username=${encodeURIComponent(q)}`, {
+        credentials: "include"
       });
       const users = await res.json();
       const resultsDiv = document.getElementById("globalSearchResults");
       resultsDiv.innerHTML = "";
-
-      users.forEach(u => {
-        const p = document.createElement("p");
-        p.innerHTML = `<a href="profile.html?id=${u.id}">${u.username}</a>`;
-        resultsDiv.appendChild(p);
-      });
+      users.forEach(u => renderPersonRow(resultsDiv, u));
     }
 
     // ===== LOGOUT =====
-    document.getElementById("logoutButton").onclick = () => {
-      localStorage.removeItem("token");
+    document.getElementById("logoutButton").onclick = async () => {
+      await fetch(`${API_BASE}/logout`, { method: "POST", credentials: "include" });
       window.location.href = "index.html";
     };
 

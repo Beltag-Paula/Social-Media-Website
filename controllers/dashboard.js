@@ -28,10 +28,10 @@ exports.banned = (request, response) => {
 exports.deleteUser = (request, response) => {
   const { id } = request.body;
 
-  // prevent Darwin to commit seppuku
+  // prevent Darwin from committing seppuku
   if (parseInt(id) === request.user.id) {
     return response.status(403).json({
-      message: "You cannot delete your own account"
+      message: "You cannot delete your own account",
     });
   }
 
@@ -41,7 +41,7 @@ exports.deleteUser = (request, response) => {
 
     if (user && user.isAdmin === 1) {
       return response.status(403).json({
-        message: "You cannot delete an admin account"
+        message: "You cannot delete an admin account",
       });
     }
 
@@ -55,10 +55,10 @@ exports.deleteUser = (request, response) => {
 exports.updateStatus = (request, response) => {
   const { id, status, banReason } = request.body;
 
-    // prevent Darwin ban itself
+  // prevent Darwin from banning itself
   if (parseInt(id) === request.user.id) {
     return response.status(403).json({
-      message: "You cannot ban your own account"
+      message: "You cannot ban your own account",
     });
   }
 
@@ -76,7 +76,9 @@ exports.updateStatus = (request, response) => {
   }
 
   db.run(sql, params, (err) => {
-    if (err) return response.status(500).json({ message: "Status updated" });
+    // BUG FIX: this used to report success ("Status updated") even when
+    // the query failed, which hid real DB errors from the admin UI.
+    if (err) return response.status(500).json({ message: "DB error" });
     response.json({ message: "Updated" });
   });
 };

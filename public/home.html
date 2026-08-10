@@ -2,75 +2,110 @@
 <html>
 
 <head>
-  <title>Home Feed</title>
-  <script>
-    const token = localStorage.getItem("token");
-    if (!token) window.location.href = "index.html";
-  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Home Feed — The Board</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 
 <body>
-  <nav>
-    <a href="home.html">Home Feed</a> |
-    <a href="profile.html">My Profile</a> |
-
-    <input type="text" id="globalSearchInput" placeholder="Search users...">
-    <button onclick="executeGlobalSearch()">Search</button>
-    <div id="globalSearchResults"></div>
-
-    <button id="logoutButton">Log out</button>
+  <nav class="board-nav">
+    <a href="home.html">Home Feed</a>
+    <a href="profile.html">My Profile</a>
+    <div class="search-group">
+      <input type="text" id="globalSearchInput" placeholder="Search users…">
+      <button onclick="executeGlobalSearch()">Search</button>
+      <div id="globalSearchResults"></div>
+    </div>
+    <button class="ghost" id="logoutButton">Log out</button>
   </nav>
 
-  <h1>Latest Posts</h1>
-
-  <hr>
-
-  <div id="feedContainer">
-    <p>Loading posts...</p>
+  <div class="page">
+    <h1>Latest posts</h1>
+    <div id="feedContainer">
+      <p style="color: var(--paper);">Loading posts…</p>
+    </div>
   </div>
 
   <script>
-    const API = "http://localhost:8000/api/v1";
-    const tokenData = localStorage.getItem("token");
+    const API = "/api/v1";
 
+    // The cookie rides along automatically with credentials: "include" —
+    // there's no token in JS to attach as a header anymore.
     async function loadFeed() {
-      const res = await fetch(`${API}/feed`, {
-        headers: { Authorization: `Bearer ${tokenData}` }
-      });
+      const res = await fetch(`${API}/feed`, { credentials: "include" });
+
+      if (res.status === 401 || res.status === 403) {
+        window.location.href = "index.html";
+        return;
+      }
+
       const posts = await res.json();
       const container = document.getElementById("feedContainer");
       container.innerHTML = "";
 
-      posts.forEach(post => {
-        const postDiv = document.createElement("div");
-        postDiv.innerHTML = `
-            <h3>${post.username}</h3>
-            <p>${post.body}</p>
-            ${post.mediaPath ? `<img src="/${post.mediaPath}" width="300">` : ""}
-            <small>${post.createdAt}</small>
-            <hr>
-          `;
-        container.appendChild(postDiv);
-      });
+      if (!Array.isArray(posts) || posts.length === 0) {
+        container.innerHTML = "<p style='color: var(--paper);'>No posts yet.</p>";
+        return;
+      }
+
+      posts.forEach(post => container.appendChild(renderPost(post)));
     }
 
-    // document.getElementById("searchBtn").onclick = async () => {
-    //   const q = document.getElementById("searchInput").value;
-    //   const res = await fetch(`${API}/search?username=${q}`, {
-    //     headers: { Authorization: `Bearer ${tokenData}` }
-    //   });
-    //   const users = await res.json();
-    //   const resultsDiv = document.getElementById("searchResults");
-    //   resultsDiv.innerHTML = "<h4>Results:</h4>";
-    //   users.forEach(u => {
-    //     resultsDiv.innerHTML += `<p>${u.username} <button>Follow</button></p>`;
-    //   });
-    // };
+    // BUG FIX: previously built with innerHTML + template literals containing
+    // raw post.username / post.body, so anyone could store a <script> tag as
+    // their bio/post body and have it execute for every viewer (stored XSS).
+    // Building the DOM with createElement + textContent avoids that entirely.
+    function renderPost(post) {
+      const card = document.createElement("div");
+      card.className = "post-card";
+
+      const heading = document.createElement("h3");
+      heading.textContent = post.username;
+      card.appendChild(heading);
+
+      if (post.body) {
+        const body = document.createElement("p");
+        body.textContent = post.body;
+        card.appendChild(body);
+      }
+
+      if (post.mediaPath) {
+        const img = document.createElement("img");
+        img.src = `/${post.mediaPath}`;
+        img.width = 300;
+        img.alt = "";
+        card.appendChild(img);
+      }
+
+      const meta = document.createElement("small");
+      meta.textContent = new Date(post.createdAt).toLocaleString();
+      card.appendChild(meta);
+
+      const likeBtn = document.createElement("button");
+      likeBtn.style.display = "block";
+      likeBtn.style.marginTop = "10px";
+      likeBtn.textContent = `♥ ${post.likeCount || 0}`;
+      likeBtn.onclick = async () => {
+        const res = await fetch(`${API}/like`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ postId: post.postId })
+        });
+        const data = await res.json();
+        const current = parseInt(likeBtn.textContent.replace("♥", "").trim(), 10) || 0;
+        likeBtn.textContent = `♥ ${data.liked ? current + 1 : Math.max(current - 1, 0)}`;
+      };
+      card.appendChild(likeBtn);
+
+      return card;
+    }
 
     async function executeGlobalSearch() {
       const q = document.getElementById("globalSearchInput").value;
-      const res = await fetch(`/api/v1/search?username=${q}`, {
-        headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+      const res = await fetch(`${API}/search?username=${encodeURIComponent(q)}`, {
+        credentials: "include"
       });
       const users = await res.json();
       const resultsDiv = document.getElementById("globalSearchResults");
@@ -78,10 +113,19 @@
 
       users.forEach(u => {
         const p = document.createElement("p");
-        p.innerHTML = `<a href="profile.html?id=${u.id}">${u.username}</a>`;
+        const a = document.createElement("a");
+        a.href = `profile.html?id=${encodeURIComponent(u.id)}`;
+        a.textContent = u.username;
+        p.appendChild(a);
         resultsDiv.appendChild(p);
       });
     }
+
+    document.getElementById("logoutButton").addEventListener("click", async () => {
+      await fetch(`${API}/logout`, { method: "POST", credentials: "include" });
+      window.location.href = "index.html";
+    });
+
     loadFeed();
   </script>
 

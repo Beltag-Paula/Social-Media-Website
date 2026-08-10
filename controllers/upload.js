@@ -15,14 +15,29 @@ const storage = multer.diskStorage({
   },
 
   filename: (request, file, cb) => {
-    // THIS IS WHERE YOU PUT IT
-    // Date.now() makes it unique
-    // path.extname(...) keeps the .mp4, .jpg, etc. extension
-    const extension = path.extname(file.originalname);
+    // Date.now() makes it unique, path.extname(...) keeps the .mp4, .jpg, etc.
+    const extension = path.extname(file.originalname).toLowerCase();
     cb(null, Date.now() + extension);
   },
 });
 
-const upload = multer({ storage: storage });
+// BUG FIX: the original config had no fileFilter or size limit. Since
+// uploaded files are served back out directly via express.static("uploads"),
+// an unrestricted upload would let anyone host arbitrary files (including
+// executable HTML/SVG with scripts) from your domain. This restricts
+// uploads to actual image/video mimetypes and caps size at 25MB.
+const ALLOWED_MIME = /^(image\/(png|jpe?g|gif|webp)|video\/(mp4|webm|quicktime))$/;
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (request, file, cb) => {
+    if (ALLOWED_MIME.test(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Unsupported file type"));
+    }
+  },
+});
 
 module.exports = upload;

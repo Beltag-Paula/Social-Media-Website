@@ -13,17 +13,18 @@ if (!SECRET_KEY) {
 }
 
 exports.authenticateToken = async (request, response, next) => {
-  const authHeader = request.headers["authorization"];
+  // SECURITY CHANGE: token now lives in an httpOnly cookie instead of a
+  // Bearer header the frontend read out of localStorage. localStorage is
+  // readable by any JS running on the page, so any XSS anywhere steals
+  // every logged-in session. An httpOnly cookie can't be read by JS at all.
+  const token = request.cookies && request.cookies.token;
 
-  // Check if header exists and starts with 'Bearer '
-  if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+  if (!token) {
     return response.status(401).json({
       success: false,
       message: "Authentication required",
     });
   }
-
-  const token = authHeader.split(" ")[1];
 
   try {
     const decoded = await verifyToken(token, SECRET_KEY);

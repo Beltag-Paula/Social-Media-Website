@@ -2,46 +2,45 @@
 <html>
 
 <head>
-    <title>Admin Dashboard</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin Dashboard — The Board</title>
+    <link rel="stylesheet" href="css/style.css" />
 </head>
 
-<script src="js/search.js"></script>
-
-
 <body>
-    <nav>
-        <a href="home.html">Home Feed</a> |
-        <a href="profile.html">My Profile</a> |
-
-        <input type="text" id="globalSearchInput" placeholder="Search users...">
-        <button onclick="executeGlobalSearch()">Search</button>
-        <div id="globalSearchResults"></div>
-
-        <button id="logoutButton">Log out</button>
+    <nav class="board-nav">
+        <a href="home.html">Home Feed</a>
+        <a href="profile.html">My Profile</a>
+        <div class="search-group">
+            <input type="text" id="globalSearchInput" placeholder="Search users…">
+            <button onclick="executeGlobalSearch()">Search</button>
+            <div id="globalSearchResults"></div>
+        </div>
+        <button class="ghost logout-btn">Log out</button>
     </nav>
-    <h1>Admin Dashboard</h1>
 
-    <div>
-        <h3>Pending Approvals</h3>
-        <div id="pendingUsers"></div>
+    <div class="page">
+        <h1>Admin dashboard</h1>
+
+        <div class="admin-section">
+            <h3>Pending approvals</h3>
+            <div id="pendingUsers"></div>
+        </div>
+
+        <div class="admin-section">
+            <h3>Active users</h3>
+            <div id="activeUsers"></div>
+        </div>
+
+        <div class="admin-section">
+            <h3>Banned users</h3>
+            <div id="bannedUsers"></div>
+        </div>
+
+        <button type="button" id="myProfileButton">Go to my profile</button>
+        <button type="button" class="ghost logout-btn">Log out</button>
     </div>
-
-    <hr>
-
-    <div>
-        <h3>Active Users</h3>
-        <div id="activeUsers"></div>
-    </div>
-
-    <div>
-        <h3>Banned Users</h3>
-        <div id="bannedUsers"></div>
-    </div>
-
-    <hr>
-
-    <button type="button" id="myProfileButton">Go to profile</button>
-    <button type="button" id="logoutButton">Log out</button>
 
     <script>
         // Containers
@@ -49,54 +48,62 @@
         const bannedContainer = document.getElementById("bannedUsers");
         const pendingContainer = document.getElementById("pendingUsers");
 
-        // Logout Logic
-        document.getElementById("logoutButton").addEventListener("click", () => {
-            localStorage.removeItem("token");
-            window.location.href = "/index.html";
+        // BUG FIX: the page had two buttons both with id="logoutButton".
+        // getElementById only ever finds the first one, so the second
+        // (bottom) logout button silently did nothing. Using a shared
+        // class + querySelectorAll fixes both.
+        document.querySelectorAll(".logout-btn").forEach(btn => {
+            btn.addEventListener("click", async () => {
+                await fetch("/api/v1/logout", { method: "POST", credentials: "include" });
+                window.location.href = "/index.html";
+            });
         });
 
-        // Profile Redirect
+        // Profile Redirect — no token to peek at client-side anymore, the
+        // cookie (or lack of one) is checked server-side on the next page.
         document.getElementById("myProfileButton").addEventListener("click", () => {
-            const token = localStorage.getItem("token");
-            if (!token) {
-                window.location.href = "/index.html";
-            } else {
-                window.location.href = "/profile.html";
-            }
+            window.location.href = "/profile.html";
         });
+
+        const STATUS_LABEL = { 0: "pending", 1: "active", 2: "banned" };
 
         // Reusable Function to Build User Rows
         function renderUser(parent, user) {
-            const div = document.createElement("div");
-            div.id = `user-${user.id}`;
+            const row = document.createElement("div");
+            row.className = "user-row";
+            row.id = `user-${user.id}`;
 
             const name = document.createElement("p");
-            name.innerText = user.username;
+            name.className = "username";
+            name.textContent = user.username;
 
-            const statusText = document.createElement("p");
-            statusText.innerText = `Status: ${user.status}`;
+            const statusTag = document.createElement("span");
+            const statusKey = STATUS_LABEL[user.status] || "pending";
+            statusTag.className = `stamp ${statusKey}`;
+            statusTag.textContent = statusKey;
 
-            const reasonText = document.createElement("p");
-            reasonText.innerText = user.banReason ? `Ban reason: ${user.banReason}` : "";
+            row.appendChild(name);
+            row.appendChild(statusTag);
 
-            const deleteBtn = document.createElement("button");
-            deleteBtn.textContent = "Delete";
-            deleteBtn.onclick = () => deleteUser(user.id);
+            if (user.banReason) {
+                const reasonText = document.createElement("p");
+                reasonText.className = "ban-reason";
+                reasonText.textContent = `Reason: ${user.banReason}`;
+                row.appendChild(reasonText);
+            }
 
             const statusSelect = document.createElement("select");
             statusSelect.innerHTML = `
-        <option value="" disabled selected>Change Status</option>
-        <option value="1">Active</option>
-        <option value="2">Banned</option>
-        <option value="0">Pending</option>
-    `;
+                <option value="" disabled selected>Change status</option>
+                <option value="1">Active</option>
+                <option value="2">Banned</option>
+                <option value="0">Pending</option>
+            `;
 
             statusSelect.onchange = async (e) => {
                 const newStatus = e.target.value;
-
                 let banReason = null;
 
-                // ask reason ONLY if banning
                 if (newStatus == "2") {
                     banReason = prompt("Enter ban reason:");
                 }
@@ -104,23 +111,29 @@
                 await updateStatus(user.id, newStatus, banReason);
             };
 
-            div.appendChild(name);
-            div.appendChild(statusText);
-            div.appendChild(reasonText);
-            div.appendChild(statusSelect);
-            div.appendChild(deleteBtn);
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "danger";
+            deleteBtn.textContent = "Delete";
+            deleteBtn.onclick = () => deleteUser(user.id);
 
-            parent.appendChild(div);
+            row.appendChild(statusSelect);
+            row.appendChild(deleteBtn);
+
+            parent.appendChild(row);
         }
 
         // Fetching Data
         async function loadSection(endpoint, container) {
             try {
                 const response = await fetch(`/api/v1/admin/users/${endpoint}`, {
-                    headers: {
-                        "Authorization": `Bearer ${localStorage.getItem("token")}`
-                    }
+                    credentials: "include"
                 });
+
+                if (response.status === 401 || response.status === 403) {
+                    window.location.href = "/index.html";
+                    return;
+                }
+
                 const data = await response.json();
 
                 container.innerHTML = "";
@@ -140,21 +153,19 @@
             try {
                 const res = await fetch("/api/v1/admin/users/delete", {
                     method: "DELETE",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Bearer ${localStorage.getItem("token")}`
-                    },
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id })
                 });
 
                 const data = await res.json();
 
                 if (!res.ok) {
-                    alert(data.message); // <-- THIS shows backend error message from the backend
+                    alert(data.message);
                     return;
                 }
 
-                alert(data.message); // "User deleted"
+                alert(data.message);
                 refreshAll();
 
             } catch (err) {
@@ -167,10 +178,8 @@
         async function updateStatus(id, status, banReason = null) {
             const res = await fetch("/api/v1/admin/users/status", {
                 method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${localStorage.getItem("token")}`
-                },
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id, status, banReason })
             });
 
@@ -190,10 +199,13 @@
             loadSection("banned", bannedContainer);
         }
 
+        // BUG FIX: was innerHTML with raw `${u.username}` — a malicious
+        // username could inject a script that runs in the admin's session
+        // (the highest-privilege account on the site). Now built safely.
         async function executeGlobalSearch() {
             const q = document.getElementById("globalSearchInput").value;
-            const res = await fetch(`/api/v1/search?username=${q}`, {
-                headers: { "Authorization": `Bearer ${localStorage.getItem("token")}` }
+            const res = await fetch(`/api/v1/search?username=${encodeURIComponent(q)}`, {
+                credentials: "include"
             });
             const users = await res.json();
             const resultsDiv = document.getElementById("globalSearchResults");
@@ -201,10 +213,14 @@
 
             users.forEach(u => {
                 const p = document.createElement("p");
-                p.innerHTML = `<a href="profile.html?id=${u.id}">${u.username}</a>`;
+                const a = document.createElement("a");
+                a.href = `profile.html?id=${encodeURIComponent(u.id)}`;
+                a.textContent = u.username;
+                p.appendChild(a);
                 resultsDiv.appendChild(p);
             });
         }
+
         // Initial Run
         refreshAll();
     </script>
