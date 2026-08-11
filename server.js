@@ -43,6 +43,7 @@ app.use(express.static(publicPath));
 app.post("/api/v1/signup", authUsers.signup);
 app.post("/api/v1/login", authUsers.login);
 app.post("/api/v1/logout", authUsers.logout);
+app.get("/api/v1/me", authenticateToken, authUsers.me);
 
 // 2. Admin Dashboard
 app.get(
@@ -102,8 +103,10 @@ app.post(
 
 // 5. Feed & Social Logic
 app.get("/api/v1/feed", authenticateToken, feed.getHomeFeed);
+app.post("/api/v1/posts", authenticateToken, upload.single("media"), feed.createPost);
 app.post("/api/v1/like", authenticateToken, feed.toggleLike);
 app.post("/api/v1/comment", authenticateToken, feed.addComment);
+app.get("/api/v1/comments/:postId", authenticateToken, feed.getComments);
 
 // 6. Followers
 app.post("/api/v1/follow", authenticateToken, feed.toggleFollow);

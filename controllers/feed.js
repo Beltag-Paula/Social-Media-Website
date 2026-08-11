@@ -9,13 +9,16 @@ exports.getHomeFeed = (req, res) => {
   const sql = `
     SELECT 
       u.username,
+      p.userID AS userId,
       p.id AS postId,
       p.title,
       p.createdAt,
       c.body,
       m.filePath AS mediaPath,
       ma.filePath AS avatarPath,
-      (SELECT COUNT(*) FROM likes WHERE postID = p.id) AS likeCount
+      (SELECT COUNT(*) FROM likes WHERE postID = p.id) AS likeCount,
+      (SELECT COUNT(*) FROM comments WHERE postID = p.id) AS commentCount,
+      EXISTS(SELECT 1 FROM likes WHERE postID = p.id AND userID = ?) AS likedByMe
     FROM posts p
     JOIN users u ON p.userID = u.id
     LEFT JOIN content c ON p.id = c.postID
@@ -26,13 +29,60 @@ exports.getHomeFeed = (req, res) => {
     LIMIT 30
   `;
 
-  db.all(sql, [], (err, rows) => {
+  db.all(sql, [userId], (err, rows) => {
     if (err) {
       return res.status(500).json({ message: "Feed error" });
     }
 
     res.json(rows);
   });
+};
+
+
+/* =========================
+   NEW POST
+========================= */
+exports.createPost = (req, res) => {
+  const userId = req.user.id;
+  const { title, body } = req.body;
+
+  if (!title && !body && !req.file) {
+    return res.status(400).json({ message: "Post needs a title, text, or media" });
+  }
+
+  db.run(
+    "INSERT INTO posts (userID, title) VALUES (?, ?)",
+    [userId, title || ""],
+    function (err) {
+      if (err) return res.status(500).json({ message: "DB error" });
+      const postId = this.lastID;
+
+      const finish = (mediaId) => {
+        db.run(
+          "INSERT INTO content (postID, body, mediaID) VALUES (?, ?, ?)",
+          [postId, body || "", mediaId],
+          (err2) => {
+            if (err2) return res.status(500).json({ message: "DB error" });
+            res.status(201).json({ message: "Post created", postId });
+          }
+        );
+      };
+
+      if (req.file) {
+        const mediaType = req.file.mimetype.startsWith("video") ? 1 : 0;
+        db.run(
+          "INSERT INTO media (userID, filePath, mediaType) VALUES (?,?,?)",
+          [userId, req.file.path, mediaType],
+          function (err3) {
+            if (err3) return res.status(500).json({ message: "DB error" });
+            finish(this.lastID);
+          }
+        );
+      } else {
+        finish(null);
+      }
+    }
+  );
 };
 
 
@@ -99,6 +149,28 @@ exports.addComment = (req, res) => {
         return res.status(500).json({ message: "Comment failed" });
       }
       res.json({ success: true });
+    }
+  );
+};
+
+// BUG FIX / MISSING FEATURE: addComment could write comments but nothing
+// ever read them back, so they went straight into a black hole. This
+// endpoint lists a post's comments, newest last, with the commenter's name.
+exports.getComments = (req, res) => {
+  const { postId } = req.params;
+
+  db.all(
+    `
+    SELECT c.id, c.body, c.createdAt, u.id AS userId, u.username
+    FROM comments c
+    JOIN users u ON c.userID = u.id
+    WHERE c.postID = ?
+    ORDER BY c.createdAt ASC
+    `,
+    [postId],
+    (err, rows) => {
+      if (err) return res.status(500).json({ message: "DB error" });
+      res.json(rows);
     }
   );
 };

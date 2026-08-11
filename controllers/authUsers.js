@@ -119,3 +119,13 @@ exports.logout = (request, response) => {
   });
   response.status(200).json({ message: "Logged out" });
 };
+
+// Lets the frontend ask "who am I" without ever touching the (httpOnly,
+// intentionally unreadable) cookie directly — used to decide whether to
+// show the Admin Dashboard link in the nav.
+exports.me = (request, response) => {
+  response.json({
+    id: request.user.id,
+    isAdmin: request.user.isAdmin === 1 || request.user.isAdmin === true,
+  });
+};
