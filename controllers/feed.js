@@ -40,6 +40,57 @@ exports.getHomeFeed = (req, res) => {
 
 
 /* =========================
+   POSTS BY A SINGLE USER
+   Used by the profile page: pass ?limit=3 for the "recent
+   posts" preview, or no limit for the full post history.
+   :id accepts 'me' for the logged-in user.
+========================= */
+exports.getUserPosts = (req, res) => {
+  const viewerId = req.user.id;
+  const targetId = req.params.id === "me" ? req.user.id : req.params.id;
+
+  const limitParam = parseInt(req.query.limit, 10);
+  const hasLimit = Number.isInteger(limitParam) && limitParam > 0;
+
+  const sql = `
+    SELECT 
+      u.username,
+      p.userID AS userId,
+      p.id AS postId,
+      p.title,
+      p.createdAt,
+      c.body,
+      m.filePath AS mediaPath,
+      ma.filePath AS avatarPath,
+      (SELECT COUNT(*) FROM likes WHERE postID = p.id) AS likeCount,
+      (SELECT COUNT(*) FROM comments WHERE postID = p.id) AS commentCount,
+      EXISTS(SELECT 1 FROM likes WHERE postID = p.id AND userID = ?) AS likedByMe
+    FROM posts p
+    JOIN users u ON p.userID = u.id
+    LEFT JOIN content c ON p.id = c.postID
+    LEFT JOIN media m ON c.mediaID = m.id
+    LEFT JOIN profiles prof ON u.id = prof.userID
+    LEFT JOIN media ma ON prof.avatar = ma.id
+    WHERE p.userID = ?
+    ORDER BY p.createdAt DESC
+    ${hasLimit ? "LIMIT ?" : ""}
+  `;
+
+  const params = hasLimit
+    ? [viewerId, targetId, limitParam]
+    : [viewerId, targetId];
+
+  db.all(sql, params, (err, rows) => {
+    if (err) {
+      return res.status(500).json({ message: "Feed error" });
+    }
+
+    res.json(rows);
+  });
+};
+
+
+/* =========================
    NEW POST
 ========================= */
 exports.createPost = (req, res) => {

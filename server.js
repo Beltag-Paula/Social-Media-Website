@@ -103,6 +103,7 @@ app.post(
 
 // 5. Feed & Social Logic
 app.get("/api/v1/feed", authenticateToken, feed.getHomeFeed);
+app.get("/api/v1/posts/user/:id", authenticateToken, feed.getUserPosts);
 app.post("/api/v1/posts", authenticateToken, upload.single("media"), feed.createPost);
 app.post("/api/v1/like", authenticateToken, feed.toggleLike);
 app.post("/api/v1/comment", authenticateToken, feed.addComment);

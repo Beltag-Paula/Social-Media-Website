@@ -47,6 +47,20 @@
       </div>
     </div>
 
+    <div class="module field-block">
+      <div class="module-title">📌 Posts</div>
+      <div class="module-body">
+        <div class="posts-grid" id="postsGrid">
+          <p class="no-posts">Loading posts...</p>
+        </div>
+        <div class="profile-posts-footer">
+          <button class="ghost view-all-btn" id="togglePostsBtn" type="button" style="display:none;">
+            <span id="togglePostsIcon">+</span> <span id="togglePostsLabel">View all posts</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <button class="pink" id="followBtn">★ Follow / Unfollow ★</button>
     <br /><br />
 
@@ -227,6 +241,96 @@
       data.forEach(user => renderPersonRow(container, user));
     }
 
+    // ===== POSTS =====
+    const POSTS_PREVIEW_LIMIT = 3;
+    let postsExpanded = false;
+
+    // Built with createElement + textContent (not innerHTML), same as the
+    // home feed, so a post's title/body can never inject a script.
+    function renderPostPreview(post) {
+      const card = document.createElement("div");
+      card.className = "post-preview-card";
+
+      if (post.title) {
+        const title = document.createElement("p");
+        title.className = "post-preview-title";
+        title.textContent = post.title;
+        card.appendChild(title);
+      }
+
+      if (post.mediaPath) {
+        const isVideo = /\.(mp4|webm|mov)$/i.test(post.mediaPath);
+        const media = document.createElement(isVideo ? "video" : "img");
+        media.className = "post-preview-media";
+        media.src = `/${post.mediaPath}`;
+        if (isVideo) media.controls = true;
+        else media.alt = "";
+        card.appendChild(media);
+      }
+
+      if (post.body) {
+        const body = document.createElement("p");
+        body.className = "post-preview-body";
+        body.textContent = post.body;
+        card.appendChild(body);
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "post-preview-meta";
+
+      const date = document.createElement("span");
+      date.textContent = new Date(post.createdAt).toLocaleDateString();
+      meta.appendChild(date);
+
+      const likes = document.createElement("span");
+      likes.textContent = `♥ ${post.likeCount || 0}`;
+      meta.appendChild(likes);
+
+      const comments = document.createElement("span");
+      comments.textContent = `💬 ${post.commentCount || 0}`;
+      meta.appendChild(comments);
+
+      card.appendChild(meta);
+      return card;
+    }
+
+    async function loadPosts(userId, expandAll) {
+      const grid = document.getElementById("postsGrid");
+      const toggleBtn = document.getElementById("togglePostsBtn");
+      const url = expandAll
+        ? `${API_BASE}/posts/user/${userId}`
+        : `${API_BASE}/posts/user/${userId}?limit=${POSTS_PREVIEW_LIMIT}`;
+
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) return;
+
+      const posts = await res.json();
+      grid.innerHTML = "";
+
+      if (!Array.isArray(posts) || posts.length === 0) {
+        grid.innerHTML = "<p class='no-posts'>No posts yet.</p>";
+        toggleBtn.style.display = "none";
+        return;
+      }
+
+      posts.forEach(post => grid.appendChild(renderPostPreview(post)));
+
+      // Only worth offering "view all" if there might be more than the preview shows.
+      if (!expandAll && posts.length < POSTS_PREVIEW_LIMIT) {
+        toggleBtn.style.display = "none";
+      } else {
+        toggleBtn.style.display = "inline-flex";
+      }
+
+      document.getElementById("togglePostsIcon").textContent = expandAll ? "−" : "+";
+      document.getElementById("togglePostsLabel").textContent = expandAll ? "Show less" : "View all posts";
+    }
+
+    document.getElementById("togglePostsBtn").addEventListener("click", async () => {
+      postsExpanded = !postsExpanded;
+      await loadPosts(profileUserId || "me", postsExpanded);
+    });
+
     async function executeGlobalSearch() {
       const q = document.getElementById("globalSearchInput").value;
       const res = await fetch(`${API_BASE}/search?username=${encodeURIComponent(q)}`, {
@@ -253,6 +357,7 @@
     fetchProfile();
     loadFollowers(profileUserId || "me");
     loadFollowing(profileUserId || "me");
+    loadPosts(profileUserId || "me", false);
 
   </script>
 </body>

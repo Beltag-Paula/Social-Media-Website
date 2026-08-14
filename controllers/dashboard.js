@@ -28,7 +28,7 @@ exports.banned = (request, response) => {
 exports.deleteUser = (request, response) => {
   const { id } = request.body;
 
-  // prevent Darwin from committing seppuku
+  // prevent admin from committing seppuku
   if (parseInt(id) === request.user.id) {
     return response.status(403).json({
       message: "You cannot delete your own account",
@@ -55,7 +55,7 @@ exports.deleteUser = (request, response) => {
 exports.updateStatus = (request, response) => {
   const { id, status, banReason } = request.body;
 
-  // prevent Darwin from banning itself
+  // prevent admin from banning itself
   if (parseInt(id) === request.user.id) {
     return response.status(403).json({
       message: "You cannot ban your own account",
