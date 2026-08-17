@@ -1,3 +1,4 @@
+require("dotenv").config();
 const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 const bcrypt = require("bcryptjs");
@@ -38,9 +39,10 @@ function initialize_myDatabase() {
       },
     );
 
-    //make sure there is an admin!, yeah I know is not good that is hardcoded
-    const adminUsername = "Darwin";
-    const adminPassword = "12345678";
+    const adminUsername = process.env.AdminUsername;
+    const adminPassword = process.env.AdminPassword;
+    console.log("Admin:", process.env.AdminUsername);
+console.log("Password:", process.env.AdminPassword);
     const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
 
     db.run(
