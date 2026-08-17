@@ -1,7 +1,5 @@
 require("dotenv").config();
 
-const { response } = require("express");
-const { request } = require("http");
 const jwt = require("jsonwebtoken");
 const util = require("util");
 const verifyToken = util.promisify(jwt.verify);
