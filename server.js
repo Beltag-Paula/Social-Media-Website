@@ -20,6 +20,13 @@ const searchU = require("./controllers/searchByUsername.js");
 const app = express();
 const PORT = process.env.PORT || 8000;
 
+// --- VIEW ENGINE (EJS) ---
+// Pages now live in /public/views as .ejs templates instead of static
+// .html files, so the nav bar (and anything else shared across pages) is a
+// single partial (views/partials/nav.ejs) instead of being copy-pasted.
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "public", "views"));
+
 // SECURITY CHANGE: with cookie-based auth, the browser only attaches
 // cookies to fetch() calls that pass credentials: "include" — and CORS
 // must explicitly allow credentials, since cors() with no options here
@@ -34,10 +41,30 @@ app.use(express.json());
 // Serve uploads for images/videos
 app.use("/uploads", express.static("uploads"));
 
+// Serve static assets (css, default avatar/banner images, client-side js
+// if any is added later). The HTML pages themselves are no longer static
+// files here — they're rendered from /views below.
 const publicPath = path.join(__dirname, "public");
 app.use(express.static(publicPath));
 
-// --- ROUTES ---
+// --- PAGE ROUTES (render EJS views) ---
+app.get("/", (req, res) => {
+  res.render("index", { title: "The Board" });
+});
+
+app.get("/home", (req, res) => {
+  res.render("home", { title: "Home Feed :: The Board" });
+});
+
+app.get("/profile", (req, res) => {
+  res.render("profile", { title: "My Profile :: The Board" });
+});
+
+app.get("/admin", (req, res) => {
+  res.render("adminDashboard", { title: "Admin Control Panel :: The Board" });
+});
+
+// --- API ROUTES ---
 
 // 1. Auth
 app.post("/api/v1/signup", authUsers.signup);
@@ -117,9 +144,9 @@ app.get("/api/v1/following/:id", authenticateToken, feed.getFollowing);
 // 7. Search filters usernames
 app.get("/api/v1/search", authenticateToken, searchU.searchUsername);
 
-// Fallback to the SPA shell for any unmatched route
+// Fallback to the login/signup view for any unmatched route
 app.use((request, response) => {
-  response.sendFile(path.join(publicPath, "index.html"));
+  response.render("index", { title: "The Board" });
 });
 
 // BUG FIX: without this, a rejected upload (wrong file type / too large)

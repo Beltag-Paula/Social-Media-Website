@@ -1,0 +1,16 @@
+<%
+  const homeClass = active === 'home' ? 'current' : '';
+  const profileClass = active === 'profile' ? 'current' : '';
+  const adminLinkClass = showAdminLink ? 'admin-link' : 'admin-link hidden';
+%>
+<nav class="board-nav">
+  <a href="/home" class="<%= homeClass %>">Home Feed</a>
+  <a href="/profile" class="<%= profileClass %>">My Profile</a>
+  <a href="/admin" id="adminNavLink" class="<%= adminLinkClass %>">★ Admin Dashboard</a>
+  <div class="search-group">
+    <input type="text" id="globalSearchInput" placeholder="find a friend...">
+    <button onclick="executeGlobalSearch()">Go</button>
+    <div id="globalSearchResults"></div>
+  </div>
+  <button class="ghost logout-btn">Log out</button>
+</nav>

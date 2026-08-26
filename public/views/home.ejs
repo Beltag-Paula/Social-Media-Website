@@ -4,22 +4,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Home Feed :: The Board</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
 
 <body>
-  <nav class="board-nav">
-    <a href="home.html">Home Feed</a>
-    <a href="profile.html">My Profile</a>
-    <a href="adminDashboard.html" id="adminNavLink" class="admin-link" style="display:none;">★ Admin Dashboard</a>
-    <div class="search-group">
-      <input type="text" id="globalSearchInput" placeholder="find a friend...">
-      <button onclick="executeGlobalSearch()">Go</button>
-      <div id="globalSearchResults"></div>
-    </div>
-    <button class="ghost" id="logoutButton">Log out</button>
-  </nav>
+  <%- include('partials/nav', { active: 'home', showAdminLink: false }) %>
 
   <div class="page">
     <h1 class="rainbow-text">✿ Latest Posts ✿</h1>
@@ -50,7 +40,7 @@
     </div>
 
     <div id="feedContainer">
-      <p style="color:#fff; text-shadow:1px 1px 2px rgba(0,0,0,0.4);">Loading posts...</p>
+      <p class="loading-text">Loading posts...</p>
     </div>
   </div>
 
@@ -72,7 +62,7 @@
       const res = await fetch(`${API}/feed`, { credentials: "include" });
 
       if (res.status === 401 || res.status === 403) {
-        window.location.href = "index.html";
+        window.location.href = "/";
         return;
       }
 
@@ -81,7 +71,7 @@
       container.innerHTML = "";
 
       if (!Array.isArray(posts) || posts.length === 0) {
-        container.innerHTML = "<p style='color:#fff;'>No posts yet — be the first!</p>";
+        container.innerHTML = "<p class='loading-text'>No posts yet — be the first!</p>";
         return;
       }
 
@@ -297,21 +287,25 @@
       users.forEach(u => {
         const p = document.createElement("p");
         const a = document.createElement("a");
-        a.href = `profile.html?id=${encodeURIComponent(u.id)}`;
+        a.href = `/profile?id=${encodeURIComponent(u.id)}`;
         a.textContent = u.username;
         p.appendChild(a);
         resultsDiv.appendChild(p);
       });
     }
 
-    document.getElementById("logoutButton").addEventListener("click", async () => {
-      await fetch(`${API}/logout`, { method: "POST", credentials: "include" });
-      window.location.href = "index.html";
+    document.querySelectorAll(".logout-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await fetch(`${API}/logout`, { method: "POST", credentials: "include" });
+        window.location.href = "/";
+      });
     });
 
     loadMe();
     loadFeed();
   </script>
+
+  <%- include('partials/fx') %>
 
 </body>
 

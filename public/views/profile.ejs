@@ -4,32 +4,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>My Profile :: The Board</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/style.css" />
 </head>
 
 <body>
 
-  <nav class="board-nav">
-    <a href="home.html">Home Feed</a>
-    <a href="profile.html">My Profile</a>
-    <a href="adminDashboard.html" id="adminNavLink" class="admin-link" style="display:none;">★ Admin Dashboard</a>
-    <div class="search-group">
-      <input type="text" id="globalSearchInput" placeholder="find a friend...">
-      <button onclick="executeGlobalSearch()">Go</button>
-      <div id="globalSearchResults"></div>
-    </div>
-    <button class="ghost" id="logoutButton">Log out</button>
-  </nav>
+  <%- include('partials/nav', { active: 'profile', showAdminLink: false }) %>
 
   <div class="page">
     <div class="profile-banner">
-      <img id="bannerImg" src="default-banner.jpg" alt="Profile banner" />
+      <img id="bannerImg" src="/default-banner.jpg" alt="Profile banner" />
     </div>
 
     <div class="profile-header">
       <div class="avatar-wrap">
-        <img id="avatarDisplay" class="avatar" src="default-avatar.png" alt="Avatar" />
+        <img id="avatarDisplay" class="avatar" src="/default-avatar.png" alt="Avatar" />
       </div>
       <h1 id="welcomeMessage"></h1>
       <span class="hit-counter"><span class="label">PROFILE VIEWS</span> <span id="hitCounterValue">000000</span></span>
@@ -89,6 +79,7 @@
 
   <script>
     const API_BASE = "/api/v1";
+    let welcomeRevealed = false; // so the decrypt-reveal only fires on first load, not every refetch
 
     // ===== PROFILE ID FROM URL =====
     const urlParams = new URLSearchParams(window.location.search);
@@ -129,13 +120,19 @@
       const res = await fetch(url, { credentials: "include" });
 
       if (res.status === 401 || res.status === 403) {
-        window.location.href = "index.html";
+        window.location.href = "/";
         return;
       }
 
       const data = await res.json();
 
-      document.getElementById("welcomeMessage").textContent = "Hello " + data.username + "!";
+      const welcomeEl = document.getElementById("welcomeMessage");
+      welcomeEl.textContent = "Hello " + data.username + "!";
+      if (!welcomeRevealed && window.__fx) {
+        welcomeRevealed = true;
+        window.__fx.decryptReveal(welcomeEl, { duration: 700 }, () => window.__fx.startGlitch(welcomeEl));
+      }
+
       document.getElementById("bioText").value = data.bio || "";
       renderHitCounter(data.id);
 
@@ -218,7 +215,7 @@
     // inject a script that runs on whoever views this profile.
     function renderPersonRow(container, user) {
       const a = document.createElement("a");
-      a.href = `profile.html?id=${encodeURIComponent(user.id)}`;
+      a.href = `/profile?id=${encodeURIComponent(user.id)}`;
       a.textContent = user.username;
       container.appendChild(a);
     }
@@ -347,10 +344,12 @@
     }
 
     // ===== LOGOUT =====
-    document.getElementById("logoutButton").onclick = async () => {
-      await fetch(`${API_BASE}/logout`, { method: "POST", credentials: "include" });
-      window.location.href = "index.html";
-    };
+    document.querySelectorAll(".logout-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await fetch(`${API_BASE}/logout`, { method: "POST", credentials: "include" });
+        window.location.href = "/";
+      });
+    });
 
     // ===== INIT =====
     loadMe();
@@ -360,6 +359,8 @@
     loadPosts(profileUserId || "me", false);
 
   </script>
+
+  <%- include('partials/fx') %>
 </body>
 
 </html>

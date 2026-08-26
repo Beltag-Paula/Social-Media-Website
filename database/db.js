@@ -42,7 +42,7 @@ function initialize_myDatabase() {
     const adminUsername = process.env.AdminUsername;
     const adminPassword = process.env.AdminPassword;
     console.log("Admin:", process.env.AdminUsername);
-console.log("Password:", process.env.AdminPassword);
+    console.log("Password:", process.env.AdminPassword);
     const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
 
     db.run(
@@ -165,8 +165,8 @@ console.log("Password:", process.env.AdminPassword);
         FOREIGN KEY (postID) REFERENCES posts (id) ON DELETE CASCADE
       )
       `,
-      (err) =>{
-        if(err) console.log("Error initializing the likes table", err.message);
+      (err) => {
+        if (err) console.log("Error initializing the likes table", err.message);
       }
     )
     console.log("All tables initialized successfully.");

@@ -3,13 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>The Board</title>
-    <link rel="stylesheet" href="css/style.css" />
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css" />
   </head>
   <body>
+    <canvas id="matrixCanvas" aria-hidden="true"></canvas>
+
     <div class="auth-wrap">
       <h1 class="rainbow-text">✿ welcome to THE BOARD ✿</h1>
-      <p style="color:#4A0E85; font-weight:bold;">enter at your own risk! <span class="blink">★</span></p>
+      <p class="tagline">enter at your own risk! <span class="blink">★</span></p>
 
       <!-- LOGIN FORM -->
       <div class="module auth-card">
@@ -112,7 +114,7 @@
           const result = await response.json();
 
           if (response.ok) {
-            window.location.href = result.isAdmin ? "adminDashboard.html" : "profile.html";
+            window.location.href = result.isAdmin ? "/admin" : "/profile";
           } else if (result.reason) {
             alert(`ACCESS DENIED: ${result.message}\nReason: ${result.reason}`);
           } else {
@@ -154,5 +156,95 @@
         }
       });
     </script>
+
+    <script>
+      // ===== MATRIX RAIN BACKGROUND =====
+      // Colors pulled straight from the palette in style.css:
+      //   --page-bg-top (trail fade), --accent (mid glyphs), --link-hover (bright heads)
+      (function () {
+        const canvas = document.getElementById("matrixCanvas");
+        if (!canvas || !canvas.getContext) return;
+
+        const ctx = canvas.getContext("2d");
+        const prefersReducedMotion = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+
+        // Katakana + digits, classic matrix glyph set
+        const GLYPHS =
+          "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789";
+        const glyphList = GLYPHS.split("");
+
+        const FONT_SIZE = 15;
+        const TRAIL_COLOR = "rgba(15, 23, 32, 0.08)"; // fades toward --page-bg-top
+        const HEAD_COLOR = "#a4d7f5"; // --link-hover
+        const MID_COLOR = "#66c0f4"; // --accent
+        const DIM_COLOR = "#417a9b"; // --accent-dim
+
+        let columns = 0;
+        let drops = [];
+        let rafId = null;
+        let lastFrame = 0;
+
+        function resize() {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          columns = Math.floor(canvas.width / FONT_SIZE);
+          drops = new Array(columns).fill(0).map(() => Math.random() * -100);
+        }
+
+        function draw() {
+          ctx.fillStyle = TRAIL_COLOR;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.font = FONT_SIZE + 'px "Consolas", "Courier New", monospace';
+
+          for (let i = 0; i < drops.length; i++) {
+            const glyph = glyphList[Math.floor(Math.random() * glyphList.length)];
+            const x = i * FONT_SIZE;
+            const y = drops[i] * FONT_SIZE;
+
+            const roll = Math.random();
+            ctx.fillStyle = roll > 0.95 ? HEAD_COLOR : roll > 0.6 ? MID_COLOR : DIM_COLOR;
+            ctx.fillText(glyph, x, y);
+
+            if (y > canvas.height && Math.random() > 0.975) {
+              drops[i] = 0;
+            }
+            drops[i]++;
+          }
+        }
+
+        function loop(timestamp) {
+          if (timestamp - lastFrame > 50) {
+            draw();
+            lastFrame = timestamp;
+          }
+          rafId = requestAnimationFrame(loop);
+        }
+
+        function start() {
+          if (rafId === null) rafId = requestAnimationFrame(loop);
+        }
+        function stop() {
+          if (rafId !== null) {
+            cancelAnimationFrame(rafId);
+            rafId = null;
+          }
+        }
+
+        resize();
+        window.addEventListener("resize", resize);
+
+        if (!prefersReducedMotion) {
+          start();
+          document.addEventListener("visibilitychange", () => {
+            if (document.hidden) stop();
+            else start();
+          });
+        }
+      })();
+    </script>
+    <%- include('partials/fx') %>
   </body>
 </html>
