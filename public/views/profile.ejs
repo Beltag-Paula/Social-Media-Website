@@ -13,23 +13,28 @@
   <%- include('partials/nav', { active: 'profile', showAdminLink: false }) %>
 
   <div class="page">
-    <div class="profile-banner">
+    <div class="profile-banner image-dropzone" id="bannerDropzone" tabindex="0" role="button" aria-label="Change banner">
       <img id="bannerImg" src="/default-banner.jpg" alt="Profile banner" />
+      <div class="image-dropzone-overlay">
+        <span class="dropzone-icon">🏞</span>
+        <span class="dropzone-text">Drop or click to change banner</span>
+      </div>
     </div>
+    <input type="file" id="bannerInput" accept="image/*" title="Change banner" class="visually-hidden" />
 
     <div class="profile-header">
-      <div class="avatar-wrap">
+      <div class="avatar-wrap image-dropzone" id="avatarDropzone" tabindex="0" role="button" aria-label="Change avatar">
         <img id="avatarDisplay" class="avatar" src="/default-avatar.png" alt="Avatar" />
+        <div class="image-dropzone-overlay">
+          <span class="dropzone-icon">🖼</span>
+        </div>
       </div>
+      <input type="file" id="avatarInput" accept="image/*" title="Change avatar" class="visually-hidden" />
       <h1 id="welcomeMessage"></h1>
-      <span class="hit-counter"><span class="label">PROFILE VIEWS</span> <span id="hitCounterValue">000000</span></span>
-      <br><br>
-      <input type="file" id="bannerInput" accept="image/*" title="Change banner" />
-      <input type="file" id="avatarInput" accept="image/*" title="Change avatar" />
     </div>
 
     <div class="module field-block">
-      <div class="module-title">💬 About Me</div>
+      <div class="module-title">About Me</div>
       <div class="module-body">
         <textarea id="bioText" rows="4"></textarea>
         <br /><br />
@@ -38,7 +43,7 @@
     </div>
 
     <div class="module field-block">
-      <div class="module-title">📌 Posts</div>
+      <div class="module-title">Posts</div>
       <div class="module-body">
         <div class="posts-grid" id="postsGrid">
           <p class="no-posts">Loading posts...</p>
@@ -51,31 +56,40 @@
       </div>
     </div>
 
-    <button class="pink" id="followBtn">★ Follow / Unfollow ★</button>
+    <button class="pink" id="followBtn">Follow / Unfollow ★</button>
     <br /><br />
 
     <div class="module blue field-block">
-      <div class="module-title">🎬 Intro Video</div>
+      <div class="module-title">Intro Video</div>
       <div class="module-body">
         <video id="profileVideo" width="100%" controls>
           <source id="videoSource" src="" type="video/mp4">
         </video>
         <p id="noVideoMsg">No video found.</p>
-        <input type="file" id="videoInput" accept="video/*" />
+        <div class="upload-control">
+          <div class="dropzone" id="videoDropzone" tabindex="0" role="button" aria-label="Attach an intro video">
+            <span class="dropzone-icon">🎬</span>
+            <p class="dropzone-text">Drag &amp; drop a video, or click to browse</p>
+            <p class="dropzone-filename" id="videoFilename"></p>
+          </div>
+          <input type="file" id="videoInput" accept="video/*" class="visually-hidden" />
+        </div>
       </div>
     </div>
 
     <div class="people-columns">
       <div class="module field-block">
-        <div class="module-title">👥 Followers</div>
+        <div class="module-title">Followers</div>
         <div class="module-body" id="followersList"></div>
       </div>
       <div class="module field-block">
-        <div class="module-title">➕ Following</div>
+        <div class="module-title">Following</div>
         <div class="module-body" id="followingList"></div>
       </div>
     </div>
   </div>
+
+  <%- include('partials/dropzone') %>
 
   <script>
     const API_BASE = "/api/v1";
@@ -86,6 +100,18 @@
     const profileUserId = urlParams.get("id"); // null = own profile
 
     if (profileUserId) {
+      // Not your own profile: keep the avatar/banner photos visible, but
+      // strip their upload interactivity (and drop the video upload box
+      // entirely, same as before).
+      document.querySelectorAll('.image-dropzone').forEach(el => {
+        el.classList.remove('image-dropzone', 'drag-over');
+        el.removeAttribute('tabindex');
+        el.removeAttribute('role');
+        el.removeAttribute('aria-label');
+        el.style.cursor = 'default';
+      });
+      document.querySelectorAll('.image-dropzone-overlay').forEach(el => el.remove());
+      document.querySelectorAll('.upload-control').forEach(el => el.remove());
       Array.from(document.querySelectorAll('input[type="file"]')).forEach(el => el.remove());
       document.getElementById('saveBioBtn').remove();
       document.getElementById('followBtn').style.display = "inline-block";
@@ -101,14 +127,6 @@
         const me = await res.json();
         if (me.isAdmin) document.getElementById("adminNavLink").style.display = "inline-block";
       } catch (e) { /* not logged in */ }
-    }
-
-    // Decorative only — a stand-in for the classic "profile views" counter.
-    // Not persisted anywhere, just a deterministic-looking number per profile.
-    function renderHitCounter(id) {
-      const seed = String(id).split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-      const value = 1000 + (seed * 37) % 8999;
-      document.getElementById("hitCounterValue").textContent = String(value).padStart(6, "0");
     }
 
     // ===== LOAD PROFILE =====
@@ -127,14 +145,13 @@
       const data = await res.json();
 
       const welcomeEl = document.getElementById("welcomeMessage");
-      welcomeEl.textContent = "Hello " + data.username + "!";
+      welcomeEl.textContent = data.username;
       if (!welcomeRevealed && window.__fx) {
         welcomeRevealed = true;
         window.__fx.decryptReveal(welcomeEl, { duration: 700 }, () => window.__fx.startGlitch(welcomeEl));
       }
 
       document.getElementById("bioText").value = data.bio || "";
-      renderHitCounter(data.id);
 
       if (data.avatarPath) document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
       if (data.bannerPath) document.getElementById("bannerImg").src = `/${data.bannerPath}`;
@@ -358,6 +375,21 @@
     loadFollowing(profileUserId || "me");
     loadPosts(profileUserId || "me", false);
 
+    // On someone else's profile the file inputs are removed and the
+    // image-dropzone class/attrs are stripped (see above), so
+    // initFileDropzone just no-ops here (inputEl will be null).
+    initFileDropzone(document.getElementById("avatarDropzone"), document.getElementById("avatarInput"));
+    initFileDropzone(document.getElementById("bannerDropzone"), document.getElementById("bannerInput"));
+    initFileDropzone(
+      document.getElementById("videoDropzone"),
+      document.getElementById("videoInput"),
+      {
+        onFileSelected: (file) => {
+          const label = document.getElementById("videoFilename");
+          if (label) label.textContent = file ? `Selected: ${file.name}` : "";
+        },
+      }
+    );
   </script>
 
   <%- include('partials/fx') %>

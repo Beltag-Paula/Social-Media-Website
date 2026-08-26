@@ -1,0 +1,75 @@
+<script>
+  // ===== FILE DROPZONE (shared across pages) =====
+  // Vanilla drag-and-drop, following the pattern from MDN's File drag and
+  // drop guide: prevent the browser's default open-this-file behavior,
+  // toggle a highlight class while a file is dragged over, and read the
+  // dropped file from event.dataTransfer.files on "drop".
+  //
+  // The dropped (or click-picked) file is assigned back onto the real
+  // <input type="file"> via the DataTransfer API, and a "change" event is
+  // dispatched on it — so any existing `input.onchange = ...` handler, or
+  // code that reads `input.files[0]` on form submit, keeps working exactly
+  // as before. This is purely a front end for the same input.
+  (function () {
+    // Stop the browser from navigating away / opening the file if it's
+    // dropped somewhere outside a dropzone.
+    if (!window.__dropGuardInstalled) {
+      window.__dropGuardInstalled = true;
+      ["dragover", "drop"].forEach((evtName) => {
+        window.addEventListener(evtName, (e) => e.preventDefault());
+      });
+    }
+
+    window.initFileDropzone = function initFileDropzone(dropzoneEl, inputEl, { onFileSelected } = {}) {
+      if (!dropzoneEl || !inputEl) return;
+
+      const preventDefaults = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
+      ["dragenter", "dragover", "dragleave", "drop"].forEach((evtName) => {
+        dropzoneEl.addEventListener(evtName, preventDefaults, false);
+      });
+
+      ["dragenter", "dragover"].forEach((evtName) => {
+        dropzoneEl.addEventListener(evtName, () => dropzoneEl.classList.add("drag-over"), false);
+      });
+      ["dragleave", "drop"].forEach((evtName) => {
+        dropzoneEl.addEventListener(evtName, () => dropzoneEl.classList.remove("drag-over"), false);
+      });
+
+      dropzoneEl.addEventListener("drop", (e) => {
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (!file) return;
+        assignFileToInput(file);
+      });
+
+      // Click or keyboard (Enter/Space) opens the native file picker
+      dropzoneEl.addEventListener("click", () => inputEl.click());
+      dropzoneEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          inputEl.click();
+        }
+      });
+
+      inputEl.addEventListener("change", () => {
+        const file = inputEl.files && inputEl.files[0];
+        if (onFileSelected) onFileSelected(file || null);
+      });
+
+      function assignFileToInput(file) {
+        try {
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          inputEl.files = dt.files;
+        } catch (err) {
+          console.error("Couldn't assign dropped file to input:", err);
+          return;
+        }
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    };
+  })();
+</script>

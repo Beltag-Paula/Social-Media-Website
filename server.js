@@ -20,10 +20,7 @@ const searchU = require("./controllers/searchByUsername.js");
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// --- VIEW ENGINE (EJS) ---
-// Pages now live in /public/views as .ejs templates instead of static
-// .html files, so the nav bar (and anything else shared across pages) is a
-// single partial (views/partials/nav.ejs) instead of being copy-pasted.
+
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "public", "views"));
 

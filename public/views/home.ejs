@@ -12,14 +12,10 @@
   <%- include('partials/nav', { active: 'home', showAdminLink: false }) %>
 
   <div class="page">
-    <h1 class="rainbow-text">✿ Latest Posts ✿</h1>
-
-    <div class="marquee-strip">
-      <span>★☆★ welcome back to the board! don't forget to comment on your friends' posts ★☆★ leave some love ★☆★ thanks for stopping by ★☆★</span>
-    </div>
+    <h1 class="rainbow-text">Latest Posts</h1>
 
     <div class="module pink">
-      <div class="module-title">📝 What's on your mind?</div>
+      <div class="module-title">What's on your mind?</div>
       <div class="module-body">
         <form id="newPostForm" class="new-post-form">
           <div class="row">
@@ -32,7 +28,14 @@
           </div>
           <div class="row">
             <label for="postMedia">Attach a pic or video (optional)</label>
-            <input type="file" id="postMedia" accept="image/*,video/*">
+            <div class="upload-control">
+              <div class="dropzone" id="postMediaDropzone" tabindex="0" role="button" aria-label="Attach a photo or video">
+                <span class="dropzone-icon">+</span>
+                <p class="dropzone-text">Drag &amp; drop a photo or video, or click to browse</p>
+                <p class="dropzone-filename" id="postMediaFilename"></p>
+              </div>
+              <input type="file" id="postMedia" accept="image/*,video/*" class="visually-hidden">
+            </div>
           </div>
           <button type="submit" class="pink">Post it! <span class="new-badge blink">NEW</span></button>
         </form>
@@ -43,6 +46,8 @@
       <p class="loading-text">Loading posts...</p>
     </div>
   </div>
+
+  <%- include('partials/dropzone') %>
 
   <script>
     const API = "/api/v1";
@@ -271,6 +276,7 @@
       }
 
       document.getElementById("newPostForm").reset();
+      document.getElementById("postMediaFilename").textContent = "";
       loadFeed();
     });
 
@@ -303,6 +309,16 @@
 
     loadMe();
     loadFeed();
+
+    initFileDropzone(
+      document.getElementById("postMediaDropzone"),
+      document.getElementById("postMedia"),
+      {
+        onFileSelected: (file) => {
+          document.getElementById("postMediaFilename").textContent = file ? `Selected: ${file.name}` : "";
+        },
+      }
+    );
   </script>
 
   <%- include('partials/fx') %>
