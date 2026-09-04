@@ -41,8 +41,6 @@ function initialize_myDatabase() {
 
     const adminUsername = process.env.AdminUsername;
     const adminPassword = process.env.AdminPassword;
-    console.log("Admin:", process.env.AdminUsername);
-    console.log("Password:", process.env.AdminPassword);
     const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
 
     db.run(
@@ -149,6 +147,56 @@ function initialize_myDatabase() {
             `,
       (err) => {
         if (err) console.log("Error initializing the posts media", err.message);
+      },
+    );
+
+    //8th table is private one-to-one conversations.
+    // Store the two user IDs in a canonical order so one pair can only
+    // have one conversation. Authorization is always checked against both IDs.
+    db.run(
+      `
+      CREATE TABLE IF NOT EXISTS conversations
+      (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user1ID INTEGER NOT NULL,
+        user2ID INTEGER NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user1ID) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (user2ID) REFERENCES users (id) ON DELETE CASCADE,
+        CHECK (user1ID < user2ID),
+        UNIQUE(user1ID, user2ID)
+      )
+      `,
+      (err) => {
+        if (err) console.log("Error initializing conversations table", err.message);
+      },
+    );
+
+    //9th table is private messages. senderID is deliberately stored server-side;
+    // the WebSocket client is never allowed to choose it.
+    db.run(
+      `
+      CREATE TABLE IF NOT EXISTS messages
+      (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversationID INTEGER NOT NULL,
+        senderID INTEGER NOT NULL,
+        body TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (conversationID) REFERENCES conversations (id) ON DELETE CASCADE,
+        FOREIGN KEY (senderID) REFERENCES users (id) ON DELETE CASCADE
+      )
+      `,
+      (err) => {
+        if (err) console.log("Error initializing messages table", err.message);
+      },
+    );
+
+    db.run(
+      `CREATE INDEX IF NOT EXISTS idx_messages_conversation_id
+       ON messages (conversationID, id)`,
+      (err) => {
+        if (err) console.log("Error creating messages index", err.message);
       },
     );
 

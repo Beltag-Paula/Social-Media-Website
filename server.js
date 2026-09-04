@@ -3,7 +3,9 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
-const cookieParser = require("cookie-parser"); // npm install cookie-parser
+const cookieParser = require("cookie-parser");
+const http = require("http");
+const { attachChatWebSocket } = require("./websocket/chatServer.js");
 
 // --- CONTROLLERS ---
 const authUsers = require("./controllers/authUsers.js");
@@ -19,6 +21,7 @@ const searchU = require("./controllers/searchByUsername.js");
 
 const app = express();
 const PORT = process.env.PORT || 8000;
+const APP_ORIGIN = process.env.APP_ORIGIN || `http://localhost:${PORT}`;
 
 
 app.set("view engine", "ejs");
@@ -31,9 +34,9 @@ app.set("views", path.join(__dirname, "public", "views"));
 // silently dropped on cross-origin requests. origin: true reflects the
 // request's own origin, which is required (a literal "*" is rejected by
 // browsers when credentials are involved).
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: APP_ORIGIN, credentials: true }));
 app.use(cookieParser());
-app.use(express.json());
+app.use(express.json({ limit: "16kb" }));
 
 // Serve uploads for images/videos
 app.use("/uploads", express.static("uploads"));
@@ -141,6 +144,11 @@ app.get("/api/v1/following/:id", authenticateToken, feed.getFollowing);
 // 7. Search filters usernames
 app.get("/api/v1/search", authenticateToken, searchU.searchUsername);
 
+// 8. Private one-to-one chat
+const chat = require("./controllers/chat.js");
+app.post("/api/v1/chat/conversations", authenticateToken, chat.createConversation);
+app.get("/api/v1/chat/conversations/:id/messages", authenticateToken, chat.getMessages);
+
 // Fallback to the login/signup view for any unmatched route
 app.use((request, response) => {
   response.render("index", { title: "The Board" });
@@ -157,6 +165,10 @@ app.use((err, request, response, next) => {
   next();
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+const server = http.createServer(app);
+attachChatWebSocket(server);
+
+server.listen(PORT, () => {
+  console.log(`Server running at ${APP_ORIGIN}`);
+  console.log(`WebSocket chat available at ${APP_ORIGIN.replace(/^http/, "ws")}/ws`);
 });

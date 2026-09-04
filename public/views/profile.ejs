@@ -4,395 +4,588 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><%= title %></title>
+  <title>
+    <%= title %>
+  </title>
   <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/hideMeBitch.css" />
 </head>
 
 <body>
 
-  <%- include('partials/nav', { active: 'profile', showAdminLink: false }) %>
+  <%- include('partials/nav', { active: 'profile' , showAdminLink: false }) %>
 
-  <div class="page">
-    <div class="profile-banner image-dropzone" id="bannerDropzone" tabindex="0" role="button" aria-label="Change banner">
-      <img id="bannerImg" src="/default-banner.jpg" alt="Profile banner" />
-      <div class="image-dropzone-overlay">
-        <span class="dropzone-icon">🏞</span>
-        <span class="dropzone-text">Drop or click to change banner</span>
-      </div>
-    </div>
-    <input type="file" id="bannerInput" accept="image/*" title="Change banner" class="visually-hidden" />
-
-    <div class="profile-header">
-      <div class="avatar-wrap image-dropzone" id="avatarDropzone" tabindex="0" role="button" aria-label="Change avatar">
-        <img id="avatarDisplay" class="avatar" src="/default-avatar.png" alt="Avatar" />
+    <div class="page">
+      <div class="profile-banner image-dropzone" id="bannerDropzone" tabindex="0" role="button"
+        aria-label="Change banner">
+        <img id="bannerImg" src="/default-banner.jpg" alt="Profile banner" />
         <div class="image-dropzone-overlay">
-          <span class="dropzone-icon">🖼</span>
+          <span class="dropzone-icon">🏞</span>
+          <span class="dropzone-text">Drop or click to change banner</span>
         </div>
       </div>
-      <input type="file" id="avatarInput" accept="image/*" title="Change avatar" class="visually-hidden" />
-      <h1 id="welcomeMessage"></h1>
-    </div>
+      <input type="file" id="bannerInput" accept="image/*" title="Change banner" class="visually-hidden" />
 
-    <div class="module field-block">
-      <div class="module-title">About Me</div>
-      <div class="module-body">
-        <textarea id="bioText" rows="4"></textarea>
-        <br /><br />
-        <button id="saveBioBtn">Update Bio</button>
-      </div>
-    </div>
-
-    <div class="module field-block">
-      <div class="module-title">Posts</div>
-      <div class="module-body">
-        <div class="posts-grid" id="postsGrid">
-          <p class="no-posts">Loading posts...</p>
-        </div>
-        <div class="profile-posts-footer">
-          <button class="ghost view-all-btn" id="togglePostsBtn" type="button" style="display:none;">
-            <span id="togglePostsIcon">+</span> <span id="togglePostsLabel">View all posts</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <button class="pink" id="followBtn">Follow / Unfollow ★</button>
-    <br /><br />
-
-    <div class="module blue field-block">
-      <div class="module-title">Intro Video</div>
-      <div class="module-body">
-        <video id="profileVideo" width="100%" controls>
-          <source id="videoSource" src="" type="video/mp4">
-        </video>
-        <p id="noVideoMsg">No video found.</p>
-        <div class="upload-control">
-          <div class="dropzone" id="videoDropzone" tabindex="0" role="button" aria-label="Attach an intro video">
-            <span class="dropzone-icon">🎬</span>
-            <p class="dropzone-text">Drag &amp; drop a video, or click to browse</p>
-            <p class="dropzone-filename" id="videoFilename"></p>
+      <div class="profile-header">
+        <div class="avatar-wrap image-dropzone" id="avatarDropzone" tabindex="0" role="button"
+          aria-label="Change avatar">
+          <img id="avatarDisplay" class="avatar" src="/default-avatar.png" alt="Avatar" />
+          <div class="image-dropzone-overlay">
+            <span class="dropzone-icon">🖼</span>
           </div>
-          <input type="file" id="videoInput" accept="video/*" class="visually-hidden" />
+        </div>
+        <input type="file" id="avatarInput" accept="image/*" title="Change avatar" class="visually-hidden" />
+        <h1 id="welcomeMessage"></h1>
+
+        <button id="triggerBtnBitch">Message Me</button>
+
+        <div id="targetMeBitch" class="hidden">
+
+          <div class="messenger-chat">
+
+            <div class="chat-header">
+              <span>Chat</span>
+              <button id="closeChat">×</button>
+            </div>
+
+            <div class="chat-messages">
+            </div>
+
+            <div class="chat-input">
+              <input type="text" placeholder="Write a message..." maxlength="2000" autocomplete="off">
+              <button>Send</button>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="module field-block">
+          <div class="module-title">About Me</div>
+          <div class="module-body">
+            <textarea id="bioText" rows="4"></textarea>
+            <br /><br />
+            <button id="saveBioBtn">Update Bio</button>
+          </div>
+        </div>
+
+        <div class="module field-block">
+          <div class="module-title">Posts</div>
+          <div class="module-body">
+            <div class="posts-grid" id="postsGrid">
+              <p class="no-posts">Loading posts...</p>
+            </div>
+            <div class="profile-posts-footer">
+              <button class="ghost view-all-btn" id="togglePostsBtn" type="button" style="display:none;">
+                <span id="togglePostsIcon">+</span> <span id="togglePostsLabel">View all posts</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <button class="pink" id="followBtn">Follow / Unfollow ★</button>
+        <br /><br />
+
+        <div class="module blue field-block">
+          <div class="module-title">Intro Video</div>
+          <div class="module-body">
+            <video id="profileVideo" width="100%" controls>
+              <source id="videoSource" src="" type="video/mp4">
+            </video>
+            <p id="noVideoMsg">No video found.</p>
+            <div class="upload-control">
+              <div class="dropzone" id="videoDropzone" tabindex="0" role="button" aria-label="Attach an intro video">
+                <span class="dropzone-icon">🎬</span>
+                <p class="dropzone-text">Drag &amp; drop a video, or click to browse</p>
+                <p class="dropzone-filename" id="videoFilename"></p>
+              </div>
+              <input type="file" id="videoInput" accept="video/*" class="visually-hidden" />
+            </div>
+          </div>
+        </div>
+
+        <div class="people-columns">
+          <div class="module field-block">
+            <div class="module-title">Followers</div>
+            <div class="module-body" id="followersList"></div>
+          </div>
+          <div class="module field-block">
+            <div class="module-title">Following</div>
+            <div class="module-body" id="followingList"></div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="people-columns">
-      <div class="module field-block">
-        <div class="module-title">Followers</div>
-        <div class="module-body" id="followersList"></div>
-      </div>
-      <div class="module field-block">
-        <div class="module-title">Following</div>
-        <div class="module-body" id="followingList"></div>
-      </div>
-    </div>
-  </div>
+      <%- include('partials/dropzone') %>
 
-  <%- include('partials/dropzone') %>
+        <script>
+          const targetMeBitch = document.querySelector('#targetMeBitch');
+          const triggerBtnBitch = document.querySelector('#triggerBtnBitch');
+          const closeChat = document.querySelector('#closeChat');
+          const chatMessages = document.querySelector('.chat-messages');
+          const chatInput = document.querySelector('.chat-input input');
+          const chatSendButton = document.querySelector('.chat-input button');
+          const chatHeader = document.querySelector('.chat-header span');
 
-  <script>
-    const API_BASE = "/api/v1";
-    let welcomeRevealed = false; // so the decrypt-reveal only fires on first load, not every refetch
+          const API_BASE = "/api/v1";
+          let welcomeRevealed = false;
+          let currentUserId = null;
+          let chatSocket = null;
+          let conversationId = null;
+          let chatReady = false;
 
-    // ===== PROFILE ID FROM URL =====
-    const urlParams = new URLSearchParams(window.location.search);
-    const profileUserId = urlParams.get("id"); // null = own profile
+          triggerBtnBitch.addEventListener('click', async () => {
+            targetMeBitch.classList.remove('hidden');
+            await openChat();
+          });
 
-    if (profileUserId) {
-      // Not your own profile: keep the avatar/banner photos visible, but
-      // strip their upload interactivity (and drop the video upload box
-      // entirely, same as before).
-      document.querySelectorAll('.image-dropzone').forEach(el => {
-        el.classList.remove('image-dropzone', 'drag-over');
-        el.removeAttribute('tabindex');
-        el.removeAttribute('role');
-        el.removeAttribute('aria-label');
-        el.style.cursor = 'default';
-      });
-      document.querySelectorAll('.image-dropzone-overlay').forEach(el => el.remove());
-      document.querySelectorAll('.upload-control').forEach(el => el.remove());
-      Array.from(document.querySelectorAll('input[type="file"]')).forEach(el => el.remove());
-      document.getElementById('saveBioBtn').remove();
-      document.getElementById('followBtn').style.display = "inline-block";
-    } else {
-      document.getElementById('followBtn').remove();
-    }
+          closeChat.addEventListener('click', () => {
+            targetMeBitch.classList.add('hidden');
+          });
 
-    // ===== WHO AM I (drives the admin nav link) =====
-    async function loadMe() {
-      try {
-        const res = await fetch(`${API_BASE}/me`, { credentials: "include" });
-        if (!res.ok) return;
-        const me = await res.json();
-        if (me.isAdmin) document.getElementById("adminNavLink").style.display = "inline-block";
-      } catch (e) { /* not logged in */ }
-    }
+          // ===== PROFILE ID FROM URL =====
+          const urlParams = new URLSearchParams(window.location.search);
+          const profileUserId = urlParams.get("id"); // null = own profile
 
-    // ===== LOAD PROFILE =====
-    async function fetchProfile() {
-      const url = profileUserId
-        ? `${API_BASE}/profile/${profileUserId}`
-        : `${API_BASE}/profile/me`;
+          if (profileUserId) {
+            // Not your own profile: keep the avatar/banner photos visible, but
+            // strip their upload interactivity (and drop the video upload box
+            // entirely, same as before).
+            document.querySelectorAll('.image-dropzone').forEach(el => {
+              el.classList.remove('image-dropzone', 'drag-over');
+              el.removeAttribute('tabindex');
+              el.removeAttribute('role');
+              el.removeAttribute('aria-label');
+              el.style.cursor = 'default';
+            });
+            document.querySelectorAll('.image-dropzone-overlay').forEach(el => el.remove());
+            document.querySelectorAll('.upload-control').forEach(el => el.remove());
+            Array.from(document.querySelectorAll('input[type="file"]')).forEach(el => el.remove());
+            document.getElementById('saveBioBtn').remove();
+            document.getElementById('followBtn').style.display = "inline-block";
+          } else {
+            document.getElementById('followBtn').remove();
+            triggerBtnBitch.remove();
+            targetMeBitch.remove();
+          }
 
-      const res = await fetch(url, { credentials: "include" });
+          // ===== WHO AM I (drives the admin nav link + chat identity) =====
+          async function loadMe() {
+            try {
+              const res = await fetch(`${API_BASE}/me`, { credentials: "include" });
+              if (!res.ok) return;
+              const me = await res.json();
+              currentUserId = Number(me.id);
 
-      if (res.status === 401 || res.status === 403) {
-        window.location.href = "/";
-        return;
-      }
+              // Do not offer a private chat with yourself, even if someone
+              // manually changes the URL to their own numeric user ID.
+              if (profileUserId && Number(profileUserId) === currentUserId) {
+                triggerBtnBitch.remove();
+                targetMeBitch.remove();
+              }
 
-      const data = await res.json();
+              if (me.isAdmin) document.getElementById("adminNavLink").style.display = "inline-block";
+            } catch (e) { /* not logged in */ }
+          }
 
-      const welcomeEl = document.getElementById("welcomeMessage");
-      welcomeEl.textContent = data.username;
-      if (!welcomeRevealed && window.__fx) {
-        welcomeRevealed = true;
-        window.__fx.decryptReveal(welcomeEl, { duration: 700 }, () => window.__fx.startGlitch(welcomeEl));
-      }
+          // ===== LOAD PROFILE =====
+          async function fetchProfile() {
+            const url = profileUserId
+              ? `${API_BASE}/profile/${profileUserId}`
+              : `${API_BASE}/profile/me`;
 
-      document.getElementById("bioText").value = data.bio || "";
+            const res = await fetch(url, { credentials: "include" });
 
-      if (data.avatarPath) document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
-      if (data.bannerPath) document.getElementById("bannerImg").src = `/${data.bannerPath}`;
+            if (res.status === 401 || res.status === 403) {
+              window.location.href = "/";
+              return;
+            }
 
-      const videoEl = document.getElementById("profileVideo");
-      const sourceEl = document.getElementById("videoSource");
+            const data = await res.json();
 
-      if (data.videoPath) {
-        sourceEl.src = `/${data.videoPath}`;
-        videoEl.load();
-        document.getElementById("noVideoMsg").style.display = "none";
-      }
-    }
+            const welcomeEl = document.getElementById("welcomeMessage");
+            welcomeEl.textContent = data.username;
+            if (chatHeader) chatHeader.textContent = `Chat with ${data.username}`;
+            if (!welcomeRevealed && window.__fx) {
+              welcomeRevealed = true;
+              window.__fx.decryptReveal(welcomeEl, { duration: 700 }, () => window.__fx.startGlitch(welcomeEl));
+            }
 
-    // ===== UPLOAD =====
-    async function uploadFile(input, field) {
-      const file = input.files[0];
-      if (!file) return;
+            document.getElementById("bioText").value = data.bio || "";
 
-      const formData = new FormData();
-      formData.append(field, file);
+            if (data.avatarPath) document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
+            if (data.bannerPath) document.getElementById("bannerImg").src = `/${data.bannerPath}`;
 
-      const res = await fetch(`${API_BASE}/profile/${field}`, {
-        method: "POST",
-        credentials: "include",
-        body: formData,
-      });
+            const videoEl = document.getElementById("profileVideo");
+            const sourceEl = document.getElementById("videoSource");
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(err.message || "Upload failed");
-        return;
-      }
+            if (data.videoPath) {
+              sourceEl.src = `/${data.videoPath}`;
+              videoEl.load();
+              document.getElementById("noVideoMsg").style.display = "none";
+            }
+          }
 
-      fetchProfile();
-    }
+          // ===== PRIVATE CHAT =====
+          // The browser only sends conversationId + body. The server obtains
+          // the sender ID from the authenticated HttpOnly JWT cookie and checks
+          // that the current user belongs to the conversation.
+          async function openChat() {
+            if (!profileUserId) return;
 
-    if (document.getElementById("avatarInput"))
-      document.getElementById("avatarInput").onchange = e => uploadFile(e.target, "avatar");
-    if (document.getElementById("bannerInput"))
-      document.getElementById("bannerInput").onchange = e => uploadFile(e.target, "banner");
-    if (document.getElementById("videoInput"))
-      document.getElementById("videoInput").onchange = e => uploadFile(e.target, "video");
+            if (!currentUserId) {
+              await loadMe();
+              if (!currentUserId) return;
+            }
 
-    // ===== BIO =====
-    if (document.getElementById("saveBioBtn"))
-      document.getElementById("saveBioBtn").onclick = async () => {
-        const bio = document.getElementById("bioText").value;
+            if (Number(profileUserId) === currentUserId) return;
 
-        await fetch(`${API_BASE}/profile/bio`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bio }),
-        });
+            if (!chatSocket) {
+              const response = await fetch(`${API_BASE}/chat/conversations`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: Number(profileUserId) }),
+              });
 
-        alert("Bio updated!");
-      };
+              if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                alert(error.message || "Could not open chat");
+                return;
+              }
 
-    // ===== FOLLOW SYSTEM =====
-    if (document.getElementById("followBtn"))
-      document.getElementById("followBtn").onclick = async () => {
-        if (!profileUserId) return;
+              const data = await response.json();
+              conversationId = data.conversation.id;
 
-        const res = await fetch(`${API_BASE}/follow`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: profileUserId }),
-        });
+              await loadChatHistory();
+              connectChatSocket();
+            }
+          }
 
-        const data = await res.json();
-        alert(data.following ? "Now following!" : "Unfollowed");
-        loadFollowers(profileUserId);
-      };
+          async function loadChatHistory() {
+            const response = await fetch(
+              `${API_BASE}/chat/conversations/${conversationId}/messages?limit=100`,
+              { credentials: "include" },
+            );
 
-    // Built with textContent, not innerHTML, so a malicious username can't
-    // inject a script that runs on whoever views this profile.
-    function renderPersonRow(container, user) {
-      const a = document.createElement("a");
-      a.href = `/profile?id=${encodeURIComponent(user.id)}`;
-      a.textContent = user.username;
-      container.appendChild(a);
-    }
+            if (!response.ok) {
+              alert("Could not load chat history");
+              return;
+            }
 
-    async function loadFollowers(userId) {
-      const res = await fetch(`${API_BASE}/followers/${userId}`, { credentials: "include" });
-      const data = await res.json();
-      const container = document.getElementById("followersList");
-      container.innerHTML = "";
-      if (data.length === 0) { container.innerHTML = "<p class='no-comments'>No followers yet.</p>"; return; }
-      data.forEach(user => renderPersonRow(container, user));
-    }
+            const messages = await response.json();
+            chatMessages.replaceChildren();
+            messages.forEach(renderChatMessage);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }
 
-    async function loadFollowing(userId) {
-      const res = await fetch(`${API_BASE}/following/${userId}`, { credentials: "include" });
-      const data = await res.json();
-      const container = document.getElementById("followingList");
-      container.innerHTML = "";
-      if (data.length === 0) { container.innerHTML = "<p class='no-comments'>Not following anyone yet.</p>"; return; }
-      data.forEach(user => renderPersonRow(container, user));
-    }
+          function renderChatMessage(message) {
+            const row = document.createElement("div");
+            row.className = Number(message.senderID) === currentUserId
+              ? "chat-message mine"
+              : "chat-message theirs";
 
-    // ===== POSTS =====
-    const POSTS_PREVIEW_LIMIT = 3;
-    let postsExpanded = false;
+            // textContent is intentional: message bodies are untrusted user input.
+            row.textContent = message.body;
+            chatMessages.appendChild(row);
+          }
 
-    // Built with createElement + textContent (not innerHTML), same as the
-    // home feed, so a post's title/body can never inject a script.
-    function renderPostPreview(post) {
-      const card = document.createElement("div");
-      card.className = "post-preview-card";
+          function connectChatSocket() {
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            chatSocket = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-      if (post.title) {
-        const title = document.createElement("p");
-        title.className = "post-preview-title";
-        title.textContent = post.title;
-        card.appendChild(title);
-      }
+            chatSocket.addEventListener("open", () => {
+              chatReady = true;
+              chatSendButton.disabled = false;
+            });
 
-      if (post.mediaPath) {
-        const isVideo = /\.(mp4|webm|mov)$/i.test(post.mediaPath);
-        const media = document.createElement(isVideo ? "video" : "img");
-        media.className = "post-preview-media";
-        media.src = `/${post.mediaPath}`;
-        if (isVideo) media.controls = true;
-        else media.alt = "";
-        card.appendChild(media);
-      }
+            chatSocket.addEventListener("message", (event) => {
+              try {
+                const payload = JSON.parse(event.data);
 
-      if (post.body) {
-        const body = document.createElement("p");
-        body.className = "post-preview-body";
-        body.textContent = post.body;
-        card.appendChild(body);
-      }
+                if (payload.type === "ready") return;
 
-      const meta = document.createElement("div");
-      meta.className = "post-preview-meta";
+                if (payload.type === "message" && payload.message) {
+                  if (Number(payload.message.conversationID) !== Number(conversationId)) return;
+                  renderChatMessage(payload.message);
+                  chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
 
-      const date = document.createElement("span");
-      date.textContent = new Date(post.createdAt).toLocaleDateString();
-      meta.appendChild(date);
+                if (payload.type === "error") {
+                  console.error("Chat error:", payload.message);
+                }
+              } catch {
+                console.error("Received invalid WebSocket payload");
+              }
+            });
 
-      const likes = document.createElement("span");
-      likes.textContent = `♥ ${post.likeCount || 0}`;
-      meta.appendChild(likes);
+            chatSocket.addEventListener("close", () => {
+              chatReady = false;
+              chatSendButton.disabled = true;
+              chatSocket = null;
+            });
 
-      const comments = document.createElement("span");
-      comments.textContent = `💬 ${post.commentCount || 0}`;
-      meta.appendChild(comments);
+            chatSocket.addEventListener("error", () => {
+              chatReady = false;
+              chatSendButton.disabled = true;
+            });
+          }
 
-      card.appendChild(meta);
-      return card;
-    }
+          function sendChatMessage() {
+            if (!chatReady || !conversationId) return;
 
-    async function loadPosts(userId, expandAll) {
-      const grid = document.getElementById("postsGrid");
-      const toggleBtn = document.getElementById("togglePostsBtn");
-      const url = expandAll
-        ? `${API_BASE}/posts/user/${userId}`
-        : `${API_BASE}/posts/user/${userId}?limit=${POSTS_PREVIEW_LIMIT}`;
+            const body = chatInput.value.trim();
+            if (!body || body.length > 2000) {
+              alert("Message must be between 1 and 2000 characters");
+              return;
+            }
 
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) return;
+            chatSocket.send(JSON.stringify({
+              type: "message",
+              conversationId,
+              body,
+            }));
 
-      const posts = await res.json();
-      grid.innerHTML = "";
+            chatInput.value = "";
+            chatInput.focus();
+          }
 
-      if (!Array.isArray(posts) || posts.length === 0) {
-        grid.innerHTML = "<p class='no-posts'>No posts yet.</p>";
-        toggleBtn.style.display = "none";
-        return;
-      }
+          chatSendButton.disabled = true;
+          chatSendButton.addEventListener("click", sendChatMessage);
+          chatInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              sendChatMessage();
+            }
+          });
 
-      posts.forEach(post => grid.appendChild(renderPostPreview(post)));
+          // ===== UPLOAD =====
+          async function uploadFile(input, field) {
+            const file = input.files[0];
+            if (!file) return;
 
-      // Only worth offering "view all" if there might be more than the preview shows.
-      if (!expandAll && posts.length < POSTS_PREVIEW_LIMIT) {
-        toggleBtn.style.display = "none";
-      } else {
-        toggleBtn.style.display = "inline-flex";
-      }
+            const formData = new FormData();
+            formData.append(field, file);
 
-      document.getElementById("togglePostsIcon").textContent = expandAll ? "−" : "+";
-      document.getElementById("togglePostsLabel").textContent = expandAll ? "Show less" : "View all posts";
-    }
+            const res = await fetch(`${API_BASE}/profile/${field}`, {
+              method: "POST",
+              credentials: "include",
+              body: formData,
+            });
 
-    document.getElementById("togglePostsBtn").addEventListener("click", async () => {
-      postsExpanded = !postsExpanded;
-      await loadPosts(profileUserId || "me", postsExpanded);
-    });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              alert(err.message || "Upload failed");
+              return;
+            }
 
-    async function executeGlobalSearch() {
-      const q = document.getElementById("globalSearchInput").value;
-      const res = await fetch(`${API_BASE}/search?username=${encodeURIComponent(q)}`, {
-        credentials: "include"
-      });
-      const users = await res.json();
-      const resultsDiv = document.getElementById("globalSearchResults");
-      resultsDiv.innerHTML = "";
-      users.forEach(u => {
-        const p = document.createElement("p");
-        renderPersonRow(p, u);
-        resultsDiv.appendChild(p);
-      });
-    }
+            fetchProfile();
+          }
 
-    // ===== LOGOUT =====
-    document.querySelectorAll(".logout-btn").forEach(btn => {
-      btn.addEventListener("click", async () => {
-        await fetch(`${API_BASE}/logout`, { method: "POST", credentials: "include" });
-        window.location.href = "/";
-      });
-    });
+          if (document.getElementById("avatarInput"))
+            document.getElementById("avatarInput").onchange = e => uploadFile(e.target, "avatar");
+          if (document.getElementById("bannerInput"))
+            document.getElementById("bannerInput").onchange = e => uploadFile(e.target, "banner");
+          if (document.getElementById("videoInput"))
+            document.getElementById("videoInput").onchange = e => uploadFile(e.target, "video");
 
-    // ===== INIT =====
-    loadMe();
-    fetchProfile();
-    loadFollowers(profileUserId || "me");
-    loadFollowing(profileUserId || "me");
-    loadPosts(profileUserId || "me", false);
+          // ===== BIO =====
+          if (document.getElementById("saveBioBtn"))
+            document.getElementById("saveBioBtn").onclick = async () => {
+              const bio = document.getElementById("bioText").value;
 
-    // On someone else's profile the file inputs are removed and the
-    // image-dropzone class/attrs are stripped (see above), so
-    // initFileDropzone just no-ops here (inputEl will be null).
-    initFileDropzone(document.getElementById("avatarDropzone"), document.getElementById("avatarInput"));
-    initFileDropzone(document.getElementById("bannerDropzone"), document.getElementById("bannerInput"));
-    initFileDropzone(
-      document.getElementById("videoDropzone"),
-      document.getElementById("videoInput"),
-      {
-        onFileSelected: (file) => {
-          const label = document.getElementById("videoFilename");
-          if (label) label.textContent = file ? `Selected: ${file.name}` : "";
-        },
-      }
-    );
-  </script>
+              await fetch(`${API_BASE}/profile/bio`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ bio }),
+              });
 
-  <%- include('partials/fx') %>
+              alert("Bio updated!");
+            };
+
+          // ===== FOLLOW SYSTEM =====
+          if (document.getElementById("followBtn"))
+            document.getElementById("followBtn").onclick = async () => {
+              if (!profileUserId) return;
+
+              const res = await fetch(`${API_BASE}/follow`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: profileUserId }),
+              });
+
+              const data = await res.json();
+              alert(data.following ? "Now following!" : "Unfollowed");
+              loadFollowers(profileUserId);
+            };
+
+          // Built with textContent, not innerHTML, so a malicious username can't
+          // inject a script that runs on whoever views this profile.
+          function renderPersonRow(container, user) {
+            const a = document.createElement("a");
+            a.href = `/profile?id=${encodeURIComponent(user.id)}`;
+            a.textContent = user.username;
+            container.appendChild(a);
+          }
+
+          async function loadFollowers(userId) {
+            const res = await fetch(`${API_BASE}/followers/${userId}`, { credentials: "include" });
+            const data = await res.json();
+            const container = document.getElementById("followersList");
+            container.innerHTML = "";
+            if (data.length === 0) { container.innerHTML = "<p class='no-comments'>No followers yet.</p>"; return; }
+            data.forEach(user => renderPersonRow(container, user));
+          }
+
+          async function loadFollowing(userId) {
+            const res = await fetch(`${API_BASE}/following/${userId}`, { credentials: "include" });
+            const data = await res.json();
+            const container = document.getElementById("followingList");
+            container.innerHTML = "";
+            if (data.length === 0) { container.innerHTML = "<p class='no-comments'>Not following anyone yet.</p>"; return; }
+            data.forEach(user => renderPersonRow(container, user));
+          }
+
+          // ===== POSTS =====
+          const POSTS_PREVIEW_LIMIT = 3;
+          let postsExpanded = false;
+
+          // Built with createElement + textContent (not innerHTML), same as the
+          // home feed, so a post's title/body can never inject a script.
+          function renderPostPreview(post) {
+            const card = document.createElement("div");
+            card.className = "post-preview-card";
+
+            if (post.title) {
+              const title = document.createElement("p");
+              title.className = "post-preview-title";
+              title.textContent = post.title;
+              card.appendChild(title);
+            }
+
+            if (post.mediaPath) {
+              const isVideo = /\.(mp4|webm|mov)$/i.test(post.mediaPath);
+              const media = document.createElement(isVideo ? "video" : "img");
+              media.className = "post-preview-media";
+              media.src = `/${post.mediaPath}`;
+              if (isVideo) media.controls = true;
+              else media.alt = "";
+              card.appendChild(media);
+            }
+
+            if (post.body) {
+              const body = document.createElement("p");
+              body.className = "post-preview-body";
+              body.textContent = post.body;
+              card.appendChild(body);
+            }
+
+            const meta = document.createElement("div");
+            meta.className = "post-preview-meta";
+
+            const date = document.createElement("span");
+            date.textContent = new Date(post.createdAt).toLocaleDateString();
+            meta.appendChild(date);
+
+            const likes = document.createElement("span");
+            likes.textContent = `♥ ${post.likeCount || 0}`;
+            meta.appendChild(likes);
+
+            const comments = document.createElement("span");
+            comments.textContent = `💬 ${post.commentCount || 0}`;
+            meta.appendChild(comments);
+
+            card.appendChild(meta);
+            return card;
+          }
+
+          async function loadPosts(userId, expandAll) {
+            const grid = document.getElementById("postsGrid");
+            const toggleBtn = document.getElementById("togglePostsBtn");
+            const url = expandAll
+              ? `${API_BASE}/posts/user/${userId}`
+              : `${API_BASE}/posts/user/${userId}?limit=${POSTS_PREVIEW_LIMIT}`;
+
+            const res = await fetch(url, { credentials: "include" });
+            if (!res.ok) return;
+
+            const posts = await res.json();
+            grid.innerHTML = "";
+
+            if (!Array.isArray(posts) || posts.length === 0) {
+              grid.innerHTML = "<p class='no-posts'>No posts yet.</p>";
+              toggleBtn.style.display = "none";
+              return;
+            }
+
+            posts.forEach(post => grid.appendChild(renderPostPreview(post)));
+
+            // Only worth offering "view all" if there might be more than the preview shows.
+            if (!expandAll && posts.length < POSTS_PREVIEW_LIMIT) {
+              toggleBtn.style.display = "none";
+            } else {
+              toggleBtn.style.display = "inline-flex";
+            }
+
+            document.getElementById("togglePostsIcon").textContent = expandAll ? "−" : "+";
+            document.getElementById("togglePostsLabel").textContent = expandAll ? "Show less" : "View all posts";
+          }
+
+          document.getElementById("togglePostsBtn").addEventListener("click", async () => {
+            postsExpanded = !postsExpanded;
+            await loadPosts(profileUserId || "me", postsExpanded);
+          });
+
+          async function executeGlobalSearch() {
+            const q = document.getElementById("globalSearchInput").value;
+            const res = await fetch(`${API_BASE}/search?username=${encodeURIComponent(q)}`, {
+              credentials: "include"
+            });
+            const users = await res.json();
+            const resultsDiv = document.getElementById("globalSearchResults");
+            resultsDiv.innerHTML = "";
+            users.forEach(u => {
+              const p = document.createElement("p");
+              renderPersonRow(p, u);
+              resultsDiv.appendChild(p);
+            });
+          }
+
+          // ===== LOGOUT =====
+          document.querySelectorAll(".logout-btn").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              await fetch(`${API_BASE}/logout`, { method: "POST", credentials: "include" });
+              window.location.href = "/";
+            });
+          });
+
+          // ===== INIT =====
+          loadMe();
+          fetchProfile();
+          loadFollowers(profileUserId || "me");
+          loadFollowing(profileUserId || "me");
+          loadPosts(profileUserId || "me", false);
+
+          // On someone else's profile the file inputs are removed and the
+          // image-dropzone class/attrs are stripped (see above), so
+          // initFileDropzone just no-ops here (inputEl will be null).
+          initFileDropzone(document.getElementById("avatarDropzone"), document.getElementById("avatarInput"));
+          initFileDropzone(document.getElementById("bannerDropzone"), document.getElementById("bannerInput"));
+          initFileDropzone(
+            document.getElementById("videoDropzone"),
+            document.getElementById("videoInput"),
+            {
+              onFileSelected: (file) => {
+                const label = document.getElementById("videoFilename");
+                if (label) label.textContent = file ? `Selected: ${file.name}` : "";
+              },
+            }
+          );
+        </script>
+
+        <%- include('partials/fx') %>
 </body>
 
 </html>
