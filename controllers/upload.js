@@ -2,6 +2,10 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
+// Every user gets their own numbered subfolder under uploads/, named only
+// from req.user.id (a number straight off the verified JWT) — never from
+// anything in the request body/params — so there's no path-traversal
+// surface here regardless of what a client sends.
 const storage = multer.diskStorage({
   destination: (request, file, cb) => {
     const userId = request.user.id;
@@ -15,9 +19,11 @@ const storage = multer.diskStorage({
   },
 
   filename: (request, file, cb) => {
-    // Date.now() makes it unique, path.extname(...) keeps the .mp4, .jpg, etc.
-    const extension = path.extname(file.originalname).toLowerCase();
-    cb(null, Date.now() + extension);
+    // The final extension is decided AFTER upload, from the file's real
+    // magic bytes (see verifyUploadedFile below) — not from whatever the
+    // client claims. Multer needs a name to write the temp bytes to now,
+    // so give it a neutral placeholder; verifyUploadedFile renames it.
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}.tmp`);
   },
 });
 
@@ -26,11 +32,16 @@ const storage = multer.diskStorage({
 // an unrestricted upload would let anyone host arbitrary files (including
 // executable HTML/SVG with scripts) from your domain. This restricts
 // uploads to actual image/video mimetypes and caps size at 25MB.
+//
+// SECURITY NOTE: file.mimetype here is just the Content-Type header the
+// client's browser sent — a client can lie about it freely. This filter is
+// a cheap first pass; verifyUploadedFile() below is the real check, done
+// against the bytes actually written to disk.
 const ALLOWED_MIME = /^(image\/(png|jpe?g|gif|webp)|video\/(mp4|webm|quicktime))$/;
 
 const upload = multer({
   storage,
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
   fileFilter: (request, file, cb) => {
     if (ALLOWED_MIME.test(file.mimetype)) {
       cb(null, true);
@@ -40,4 +51,72 @@ const upload = multer({
   },
 });
 
+// Signatures are the first few bytes of the file itself, which a client
+// can't spoof through a Content-Type header the way they can mimetype.
+// This is the same trick browsers/OSes use for "type sniffing"; here it's
+// used defensively, as an allowlist, not to guess unknown files.
+const SIGNATURES = [
+  { ext: ".jpg", mimeType: "image/jpeg", check: (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
+  { ext: ".png", mimeType: "image/png", check: (b) => b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47 },
+  { ext: ".gif", mimeType: "image/gif", check: (b) => b.length >= 6 && b.toString("ascii", 0, 3) === "GIF" },
+  { ext: ".webp", mimeType: "image/webp", check: (b) => b.length >= 12 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP" },
+  // MP4 / QuickTime: bytes 4-8 spell out a box type like "ftyp"/"moov".
+  { ext: ".mp4", mimeType: "video/mp4", check: (b) => b.length >= 12 && b.toString("ascii", 4, 8) === "ftyp" },
+  { ext: ".mov", mimeType: "video/quicktime", check: (b) => b.length >= 12 && (b.toString("ascii", 4, 8) === "moov" || b.toString("ascii", 4, 8) === "free" || b.toString("ascii", 4, 8) === "mdat" || b.toString("ascii", 4, 8) === "wide") },
+  // WebM (a Matroska container): starts with the EBML magic number.
+  { ext: ".webm", mimeType: "video/webm", check: (b) => b.length >= 4 && b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3 },
+];
+
+function detectSignature(buffer) {
+  return SIGNATURES.find((sig) => sig.check(buffer));
+}
+
+// Middleware: chain this AFTER upload.single(...). Reads back the first
+// bytes multer just wrote to disk, confirms they actually match a known
+// image/video signature, and renames the file to the extension that
+// signature implies. If nothing matches (renamed .exe, HTML with a fake
+// Content-Type, a truncated/corrupt upload, etc.) the file is deleted and
+// the request rejected — nothing unverified is ever kept or served.
+function verifyUploadedFile(request, response, next) {
+  if (!request.file) return next();
+
+  const tmpPath = request.file.path;
+
+  fs.open(tmpPath, "r", (openErr, fd) => {
+    if (openErr) {
+      return response.status(500).json({ message: "Upload failed" });
+    }
+
+    const header = Buffer.alloc(16);
+    fs.read(fd, header, 0, 16, 0, (readErr, bytesRead) => {
+      fs.close(fd, () => {});
+      if (readErr) {
+        fs.unlink(tmpPath, () => {});
+        return response.status(500).json({ message: "Upload failed" });
+      }
+
+      const signature = detectSignature(header.subarray(0, bytesRead));
+      if (!signature) {
+        fs.unlink(tmpPath, () => {});
+        return response.status(400).json({
+          message: "File content doesn't match a supported image/video type",
+        });
+      }
+
+      const finalPath = tmpPath.replace(/\.tmp$/, signature.ext);
+      fs.rename(tmpPath, finalPath, (renameErr) => {
+        if (renameErr) {
+          fs.unlink(tmpPath, () => {});
+          return response.status(500).json({ message: "Upload failed" });
+        }
+        request.file.path = finalPath;
+        request.file.filename = path.basename(finalPath);
+        request.file.mimetype = signature.mimeType; // trust the verified value from here on
+        next();
+      });
+    });
+  });
+}
+
 module.exports = upload;
+module.exports.verifyUploadedFile = verifyUploadedFile;

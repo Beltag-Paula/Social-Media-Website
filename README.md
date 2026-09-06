@@ -4,6 +4,38 @@
 
 ## ⚙️ Features
 
+* Signup/login (admin-approved accounts), profile with avatar/banner/intro video, home feed, likes, comments, follow/unfollow, username search
+* **Private messaging** — real-time 1:1 DMs over WebSockets, with a REST fallback. Only the two participants in a conversation can ever read it.
+* **Photo gallery** — every avatar/banner you've ever uploaded is browsable on your profile (not just the current one), and can be reused with one click.
+* **Image lightbox** — click any post/gallery image to view it full-size with prev/next.
+* Admin dashboard for approving/banning/deleting users.
+
+---
+
+## 🔒 Security
+
+A pass was made over this app to close off the most common issues. Summary of what changed and why:
+
+| Area | What's done |
+|---|---|
+| Auth | JWT in an **httpOnly, SameSite=Strict** cookie (not localStorage — unreadable by page JS, so an XSS bug elsewhere can't steal it). Signature algorithm pinned to HS256. Ban/admin status is re-checked live on every request, not just trusted from the token. |
+| Passwords | Hashed with bcrypt; never logged (a prior version printed the bootstrap admin password to stdout on every boot — removed). |
+| SQL | Every query is parameterized — no string-built SQL anywhere. |
+| XSS | All user content (usernames, post bodies, chat messages, bios) is rendered with `textContent`/`createElement`, never `innerHTML`. |
+| CSP | Strict `Content-Security-Policy` with a per-request nonce on every inline `<script>` — an injected `<script>` tag from some other bug still won't execute, because it won't have the right nonce. |
+| CORS | Locked to an explicit origin allowlist (`ALLOWED_ORIGINS` in `.env`) instead of reflecting any origin. |
+| File uploads | Verified by real file signature (magic bytes) after upload, not just the client-supplied (spoofable) `Content-Type`. Size capped, per-user subfolders, filenames never taken from user input. |
+| Rate limiting | Login/signup and search are rate-limited per IP. |
+| Headers | `helmet` sets HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options`/`frame-ancestors`, and disables `X-Powered-By`. |
+| WebSocket chat | Same cookie-based auth as REST, **Origin allowlist check** against `ALLOWED_ORIGINS` (prevents cross-site WebSocket hijacking), per-connection rate limiting, message size cap, and every DB query scoped so a conversation is only ever readable by its two participants. |
+| Secrets | `.env` is git-ignored and never committed; `JWT_SECRET` must be a long random value (a fresh one is generated for you — rotate it before real deployment). |
+| Docker | Runs as a non-root user inside the container. |
+
+**Before deploying this anywhere public:**
+1. Change `AdminPassword` in `.env`, then remove/rotate it.
+2. Set `ALLOWED_ORIGINS` in `.env` to your real domain(s) — without it, CORS and the WebSocket Origin check are permissive (fine for local dev, not for production).
+3. Put this behind HTTPS (a reverse proxy like nginx/Caddy is the usual approach) — the app itself doesn't terminate TLS, so `wss://` for chat and `Secure` cookies both depend on that.
+
 ---
 
 ## 🧰 Tech Stack
@@ -14,21 +46,31 @@
 ## 📂 Project Structure
 ```text
 ├── public/
-│   ├── index.html    # This is the first page where the login/sign up forms are
-│   ├── adminDashboard.html #After you login in and the user is an admin, they are first directed to this page
-│   ├── profile.html # If the user has no admin privileges, they are first redirected to this page  
-│   ├── home.html    # This was supposed to be the home feed page, but I let it empty because I am lazy (also it was before I knew about the template engines such as pug, ejs and handlebar)
+│   ├── views/
+│   │   ├── index.ejs         # Login/signup
+│   │   ├── home.ejs          # Home feed
+│   │   ├── profile.ejs       # Profile, gallery, message button
+│   │   ├── adminDashboard.ejs
+│   │   └── partials/
+│   │       ├── nav.ejs
+│   │       ├── chatWidget.ejs # Floating DM panel (WebSocket + REST fallback)
+│   │       ├── lightbox.ejs   # Full-screen image viewer
+│   │       ├── dropzone.ejs
+│   │       └── fx.ejs
+├── chat/
+│   └── chatHub.js    # WebSocket server: auth, Origin check, rate limiting, delivery
 ├── database/
-│   └── db.js  # This is for creating a databse in sqlite for the database that contains the tables (users, follow, posts, media, content, profiles, likes and comments)
+│   └── db.js  # sqlite tables: users, follow, posts, media, content, profiles, likes, comments, messages
 ├── controllers/
-│   ├── authMiddleware.js # Authorization middleware that checks if the user that has logged in has admin privilegs or not
-│   ├── authUsers.js # Authentification middleware that checks in the myDatabase.db created by the db.js if the user appears appears on the users table or not and if their password matches also with the one in the table in order to login. Also creates a new user if they use the signup form from the index.html
-│   ├── dashboard.js # CRUD operations that can an admin can do with the users (approve their signup, ban+reason the ban and delete the user; *also the admin can NOT ban and delete themselves!)
+│   ├── authMiddleware.js
+│   ├── authUsers.js
+│   ├── dashboard.js
 │   ├── feed.js
-│   ├── profile.js
+│   ├── profile.js    # avatar/banner/video upload + gallery endpoints
+│   ├── messages.js   # DM REST endpoints, shared with the WebSocket handler
 │   ├── searchByUsername.js
-│   ├── upload.js
-├── upload/
+│   ├── upload.js      # multer config + post-upload magic-byte verification
+├── uploads/
 ├── server.js         # The server/backend
 ├── package.json
 └── README.md
@@ -66,7 +108,9 @@ cd Social-Media-Website
 ```text
 npm install
 ```
-#### 4 Start the server (use one of the following)
+#### 4 Review `.env`
+A working `.env` is already included for local dev (random `JWT_SECRET`, `ALLOWED_ORIGINS` set to `localhost:8000`). Change `AdminPassword` before this is reachable by anyone else, and see the **Security** section above before deploying anywhere public.
+#### 5 Start the server (use one of the following)
 ```text
 node server.js
 ```
@@ -75,7 +119,7 @@ OR (recommended if nodemon is installed)
 nodemon server.js
 ```
 
-#### 5 Open in browser:
+#### 6 Open in browser:
 ```text
 http://localhost:8000/
 ```

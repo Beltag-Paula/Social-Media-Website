@@ -1,0 +1,217 @@
+<!--
+  Floating "active conversation" panel. This used to also contain the
+  conversation list/inbox, but that's moved to the persistent sidebar
+  (partials/chatSidebar.ejs) — this widget's only job now is: hold the
+  WebSocket connection, and show whichever single thread is currently
+  open. Real-time delivery goes over /ws/chat (chat/chatHub.js); anything
+  sent while that socket isn't open falls back to the REST endpoints in
+  controllers/messages.js.
+
+  Exposes window.openChatWith(userId, username) so the sidebar, a
+  profile's "Message" button, a post's 💬 button, etc. can all jump
+  straight into a DM with that person the same way.
+
+  Also the single owner of the page's WebSocket connection — rather than
+  the sidebar keeping its own (which would double the number of open
+  sockets per browser tab for no reason), this widget dispatches a
+  "dm:updated" event on window whenever something happens that should make
+  the sidebar re-fetch its lists (a message arrives, gets sent, or a
+  thread gets marked read). The sidebar just listens for that.
+-->
+<div class="chat-panel hidden" id="chatPanel">
+  <div class="chat-panel-header">
+    <span id="chatPanelTitle">Messages</span>
+    <button type="button" class="chat-close-btn" id="chatCloseBtn" aria-label="Close conversation">✕</button>
+  </div>
+
+  <div class="chat-panel-body">
+    <div id="chatThreadMessages"></div>
+    <p class="chat-typing-indicator hidden" id="chatTypingIndicator">typing...</p>
+    <form id="chatThreadForm" class="chat-thread-form">
+      <input type="text" id="chatThreadInput" placeholder="Write a message..." maxlength="2000" autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+</div>
+
+<script nonce="<%= nonce %>">
+  (function () {
+    const CHAT_API = "/api/v1/messages";
+    let myId = null;
+    let socket = null;
+    let currentThreadUserId = null;
+    let typingTimeout = null;
+
+    const panel = document.getElementById("chatPanel");
+    const threadMessagesEl = document.getElementById("chatThreadMessages");
+    const threadForm = document.getElementById("chatThreadForm");
+    const threadInput = document.getElementById("chatThreadInput");
+    const panelTitle = document.getElementById("chatPanelTitle");
+    const closeBtn = document.getElementById("chatCloseBtn");
+    const typingIndicator = document.getElementById("chatTypingIndicator");
+
+    function notifyUpdated() {
+      window.dispatchEvent(new CustomEvent("dm:updated"));
+    }
+
+    function timeLabel(iso) {
+      const d = new Date(iso.replace(" ", "T") + "Z");
+      if (Number.isNaN(d.getTime())) return "";
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      return sameDay
+        ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : d.toLocaleDateString([], { month: "short", day: "numeric" });
+    }
+
+    // ---------- thread view ----------
+    // Built with createElement + textContent (never innerHTML), so a
+    // message body can never inject a script into either party's page.
+    function renderMessageBubble(msg) {
+      const row = document.createElement("div");
+      row.className = "chat-msg-row " + (msg.senderID === myId ? "mine" : "theirs");
+
+      const bubble = document.createElement("div");
+      bubble.className = "chat-msg-bubble";
+      bubble.textContent = msg.body;
+      row.appendChild(bubble);
+
+      const time = document.createElement("span");
+      time.className = "chat-msg-time";
+      time.textContent = timeLabel(msg.createdAt);
+      row.appendChild(time);
+
+      return row;
+    }
+
+    function appendMessage(msg, { scroll = true } = {}) {
+      threadMessagesEl.appendChild(renderMessageBubble(msg));
+      if (scroll) threadMessagesEl.scrollTop = threadMessagesEl.scrollHeight;
+    }
+
+    async function openThread(userId, username) {
+      currentThreadUserId = userId;
+      panelTitle.textContent = username;
+      typingIndicator.classList.add("hidden");
+      threadMessagesEl.innerHTML = "<p class='no-comments'>Loading...</p>";
+      panel.classList.remove("hidden");
+
+      try {
+        const res = await fetch(`${CHAT_API}/${userId}`, { credentials: "include" });
+        const msgs = await res.json();
+        threadMessagesEl.innerHTML = "";
+        if (!Array.isArray(msgs) || msgs.length === 0) {
+          threadMessagesEl.innerHTML = "<p class='no-comments'>No messages yet — say hi!</p>";
+        } else {
+          msgs.forEach((m) => appendMessage(m, { scroll: false }));
+          threadMessagesEl.scrollTop = threadMessagesEl.scrollHeight;
+        }
+      } catch (e) {
+        threadMessagesEl.innerHTML = "<p class='no-comments'>Couldn't load messages.</p>";
+      }
+
+      notifyUpdated(); // the fetch above just marked this thread read server-side
+      threadInput.focus();
+    }
+
+    closeBtn.addEventListener("click", () => {
+      panel.classList.add("hidden");
+      currentThreadUserId = null;
+    });
+
+    // ---------- sending ----------
+    async function sendCurrentMessage() {
+      const body = threadInput.value.trim();
+      if (!body || !currentThreadUserId) return;
+      threadInput.value = "";
+
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "message", to: currentThreadUserId, body }));
+        return;
+      }
+
+      // Fallback: WebSocket isn't connected right now, use the REST route.
+      try {
+        const res = await fetch(CHAT_API, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: currentThreadUserId, body }),
+        });
+        if (res.ok) {
+          const msg = await res.json();
+          appendMessage(msg);
+          notifyUpdated();
+        }
+      } catch (e) { /* offline — message just doesn't send */ }
+    }
+
+    threadForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      sendCurrentMessage();
+    });
+
+    threadInput.addEventListener("input", () => {
+      if (!currentThreadUserId || !socket || socket.readyState !== WebSocket.OPEN) return;
+      clearTimeout(typingTimeout);
+      socket.send(JSON.stringify({ type: "typing", to: currentThreadUserId }));
+      typingTimeout = setTimeout(() => {}, 1000);
+    });
+
+    // ---------- WebSocket ----------
+    function connectSocket() {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat`);
+
+      socket.addEventListener("message", (event) => {
+        let data;
+        try { data = JSON.parse(event.data); } catch { return; }
+
+        if (data.type === "message") {
+          const msg = data.message;
+          const otherPartyId = msg.senderID === myId ? msg.receiverID : msg.senderID;
+
+          if (currentThreadUserId === otherPartyId && !panel.classList.contains("hidden")) {
+            appendMessage(msg);
+          }
+          notifyUpdated(); // sidebar re-fetches either way — new last-message/unread count
+        } else if (data.type === "typing") {
+          if (currentThreadUserId === data.from && !panel.classList.contains("hidden")) {
+            typingIndicator.classList.remove("hidden");
+            clearTimeout(typingIndicator._hideTimer);
+            typingIndicator._hideTimer = setTimeout(() => typingIndicator.classList.add("hidden"), 2500);
+          }
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        // Retry after a short delay — covers dev-server restarts, brief
+        // network blips, laptop sleep/wake, etc.
+        setTimeout(connectSocket, 3000);
+      });
+
+      socket.addEventListener("error", () => socket.close());
+    }
+
+    // ---------- init ----------
+    async function init() {
+      try {
+        const res = await fetch("/api/v1/me", { credentials: "include" });
+        if (!res.ok) return; // not logged in — widget just stays inert
+        const me = await res.json();
+        myId = me.id;
+      } catch (e) {
+        return;
+      }
+
+      connectSocket();
+      notifyUpdated(); // let the sidebar do its first load
+    }
+
+    window.openChatWith = function (userId, username) {
+      openThread(userId, username);
+    };
+
+    init();
+  })();
+</script>

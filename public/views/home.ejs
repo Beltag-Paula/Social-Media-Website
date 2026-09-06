@@ -9,7 +9,7 @@
 </head>
 
 <body>
-  <%- include('partials/nav', { active: 'home', showAdminLink: false }) %>
+  <%- include('partials/nav', { active: 'home', showAdminLink: false, nonce }) %>
 
   <div class="page">
     <h1 class="rainbow-text">Latest Posts</h1>
@@ -47,9 +47,12 @@
     </div>
   </div>
 
-  <%- include('partials/dropzone') %>
+  <%- include('partials/dropzone', { nonce }) %>
+  <%- include('partials/lightbox', { nonce }) %>
+  <%- include('partials/chatWidget', { nonce }) %>
+  <%- include('partials/chatSidebar', { nonce }) %>
 
-  <script>
+  <script nonce="<%= nonce %>">
     const API = "/api/v1";
 
     // ===== WHO AM I (drives the admin nav link) =====
@@ -63,6 +66,10 @@
     }
 
     // ===== FEED =====
+    // Kept in sync with what's on screen so post images can open the
+    // shared lightbox with working Prev/Next across the whole feed.
+    let currentFeedImages = [];
+
     async function loadFeed() {
       const res = await fetch(`${API}/feed`, { credentials: "include" });
 
@@ -80,12 +87,21 @@
         return;
       }
 
-      posts.forEach(post => container.appendChild(renderPost(post)));
+      currentFeedImages = posts
+        .filter(p => p.mediaPath && !/\.(mp4|webm|mov)$/i.test(p.mediaPath))
+        .map(p => ({ src: `/${p.mediaPath}`, caption: p.title ? `${p.username} — ${p.title}` : p.username }));
+
+      let imageIndex = 0;
+      posts.forEach(post => {
+        const isImage = post.mediaPath && !/\.(mp4|webm|mov)$/i.test(post.mediaPath);
+        container.appendChild(renderPost(post, isImage ? imageIndex : -1));
+        if (isImage) imageIndex++;
+      });
     }
 
     // Built with createElement + textContent (not innerHTML) so a post
     // body or username can never inject a script into the page.
-    function renderPost(post) {
+    function renderPost(post, imageIndex) {
       const card = document.createElement("div");
       card.className = "module post-module";
 
@@ -101,6 +117,18 @@
       const nameSpan = document.createElement("span");
       nameSpan.textContent = post.title ? `${post.username} — ${post.title}` : post.username;
       titleBar.appendChild(nameSpan);
+
+      // A quick way into a DM with the poster, right from their post.
+      if (typeof window.openChatWith === "function") {
+        const msgBtn = document.createElement("button");
+        msgBtn.type = "button";
+        msgBtn.className = "ghost post-message-btn";
+        msgBtn.textContent = "💬";
+        msgBtn.title = `Message ${post.username}`;
+        msgBtn.addEventListener("click", () => window.openChatWith(post.userId, post.username));
+        titleBar.appendChild(msgBtn);
+      }
+
       card.appendChild(titleBar);
 
       const body = document.createElement("div");
@@ -118,8 +146,15 @@
         const media = document.createElement(isVideo ? "video" : "img");
         media.className = "post-media";
         media.src = `/${post.mediaPath}`;
-        if (isVideo) media.controls = true;
-        else media.alt = "";
+        if (isVideo) {
+          media.controls = true;
+        } else {
+          media.alt = "";
+          media.style.cursor = "zoom-in";
+          media.addEventListener("click", () => {
+            window.__lightbox.open(currentFeedImages, imageIndex);
+          });
+        }
         body.appendChild(media);
       }
 
@@ -321,7 +356,7 @@
     );
   </script>
 
-  <%- include('partials/fx') %>
+  <%- include('partials/fx', { nonce }) %>
 
 </body>
 

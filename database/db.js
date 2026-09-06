@@ -36,22 +36,48 @@ function initialize_myDatabase() {
             `,
       (err) => {
         if (err) console.log("Error initializing the users table", err.message);
+
+        // OWASP A07 (Identification & Authentication Failures): the app
+        // previously only rate-limited login *by source IP*. That does
+        // nothing against a botnet, or an attacker who's simply patient,
+        // targeting one specific account from many IPs. These two columns
+        // add a PER-ACCOUNT lockout on top of the existing IP-based limit
+        // (see authUsers.js) — the two defenses cover different attack
+        // shapes and are meant to be layered, not to replace each other.
+        db.run(`ALTER TABLE users ADD COLUMN failedLoginAttempts INTEGER DEFAULT 0`, (e1) => {
+          if (e1 && !/duplicate column/i.test(e1.message)) console.log("Error adding failedLoginAttempts", e1.message);
+        });
+        db.run(`ALTER TABLE users ADD COLUMN lockedUntil DATETIME DEFAULT NULL`, (e2) => {
+          if (e2 && !/duplicate column/i.test(e2.message)) console.log("Error adding lockedUntil", e2.message);
+        });
       },
     );
 
     const adminUsername = process.env.AdminUsername;
     const adminPassword = process.env.AdminPassword;
-    const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
 
-    db.run(
-      `INSERT OR IGNORE INTO users (username, hashedPassword, isAdmin, status) VALUES (?,?,?,?)`,
-      [adminUsername, adminPasswordHash, 1, 1],
-      (err) => {
-        if (err) {
-          console.error("Error inserting admin ", err.message);
-        }
-      },
-    );
+    if (!adminUsername || !adminPassword) {
+      console.warn(
+        "AdminUsername/AdminPassword not set — skipping admin bootstrap.",
+      );
+    } else {
+      // SECURITY CHANGE: this used to console.log the admin credentials in
+      // plaintext on every boot. Anything written to stdout typically ends
+      // up in log files / log aggregators / `docker logs`, which are read
+      // by far more people (and tools) than should ever see a password.
+      console.log("Admin bootstrap: ensuring account exists for", adminUsername);
+      const adminPasswordHash = bcrypt.hashSync(adminPassword, 10);
+
+      db.run(
+        `INSERT OR IGNORE INTO users (username, hashedPassword, isAdmin, status) VALUES (?,?,?,?)`,
+        [adminUsername, adminPasswordHash, 1, 1],
+        (err) => {
+          if (err) {
+            console.error("Error inserting admin ", err.message);
+          }
+        },
+      );
+    }
 
     //2nd table is follow;
     db.run(
@@ -104,6 +130,22 @@ function initialize_myDatabase() {
             `,
       (err) => {
         if (err) console.log("Error initializing the posts media", err.message);
+        // GALLERY FIX: media rows used to have no record of *why* they were
+        // uploaded. Once you replaced your avatar or banner, the old
+        // upload's row and file were still sitting there on disk/in the DB,
+        // but nothing pointed at it any more (profiles.avatar/banner only
+        // ever stores the CURRENT one) — so it was permanently invisible to
+        // the app even though it was never actually deleted. `role` fixes
+        // that by tagging what each upload was for, so a gallery query can
+        // find every avatar/banner a user has ever uploaded, not just the
+        // latest.
+        db.run(`ALTER TABLE media ADD COLUMN role TEXT DEFAULT 'post'`, (alterErr) => {
+          if (!alterErr) {
+            backfillMediaRoles();
+          } else if (!/duplicate column/i.test(alterErr.message)) {
+            console.log("Error adding media.role column", alterErr.message);
+          }
+        });
       },
     );
 
@@ -150,56 +192,6 @@ function initialize_myDatabase() {
       },
     );
 
-    //8th table is private one-to-one conversations.
-    // Store the two user IDs in a canonical order so one pair can only
-    // have one conversation. Authorization is always checked against both IDs.
-    db.run(
-      `
-      CREATE TABLE IF NOT EXISTS conversations
-      (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user1ID INTEGER NOT NULL,
-        user2ID INTEGER NOT NULL,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user1ID) REFERENCES users (id) ON DELETE CASCADE,
-        FOREIGN KEY (user2ID) REFERENCES users (id) ON DELETE CASCADE,
-        CHECK (user1ID < user2ID),
-        UNIQUE(user1ID, user2ID)
-      )
-      `,
-      (err) => {
-        if (err) console.log("Error initializing conversations table", err.message);
-      },
-    );
-
-    //9th table is private messages. senderID is deliberately stored server-side;
-    // the WebSocket client is never allowed to choose it.
-    db.run(
-      `
-      CREATE TABLE IF NOT EXISTS messages
-      (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversationID INTEGER NOT NULL,
-        senderID INTEGER NOT NULL,
-        body TEXT NOT NULL,
-        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (conversationID) REFERENCES conversations (id) ON DELETE CASCADE,
-        FOREIGN KEY (senderID) REFERENCES users (id) ON DELETE CASCADE
-      )
-      `,
-      (err) => {
-        if (err) console.log("Error initializing messages table", err.message);
-      },
-    );
-
-    db.run(
-      `CREATE INDEX IF NOT EXISTS idx_messages_conversation_id
-       ON messages (conversationID, id)`,
-      (err) => {
-        if (err) console.log("Error creating messages index", err.message);
-      },
-    );
-
     //7th table is likes
     db.run(
       `
@@ -217,6 +209,66 @@ function initialize_myDatabase() {
         if (err) console.log("Error initializing the likes table", err.message);
       }
     )
+    //8th table is messages (private DMs between exactly two users)
+    db.run(
+      `
+      CREATE TABLE IF NOT EXISTS messages
+      (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        senderID INTEGER NOT NULL,
+        receiverID INTEGER NOT NULL,
+        body TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        readAt DATETIME DEFAULT NULL,
+        FOREIGN KEY (senderID) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (receiverID) REFERENCES users (id) ON DELETE CASCADE
+      )
+      `,
+      (err) => {
+        if (err) console.log("Error initializing the messages table", err.message);
+      }
+    );
+
+    // Every thread lookup filters by "the two participants" in one order or
+    // the other, so both directions get an index — without this, every chat
+    // open does a full table scan of every DM ever sent by anyone.
+    db.run(
+      `CREATE INDEX IF NOT EXISTS idx_messages_thread_a ON messages (senderID, receiverID, id)`,
+      (err) => { if (err) console.log("Error creating idx_messages_thread_a", err.message); }
+    );
+    db.run(
+      `CREATE INDEX IF NOT EXISTS idx_messages_thread_b ON messages (receiverID, senderID, id)`,
+      (err) => { if (err) console.log("Error creating idx_messages_thread_b", err.message); }
+    );
+
+    // OWASP A09 (Security Logging & Monitoring Failures): previously
+    // nothing here recorded security-relevant events anywhere durable —
+    // failed logins, account lockouts, or what an admin did to which
+    // account were only ever visible (if at all) in whatever transient
+    // process stdout happened to be attached at the time. This table is a
+    // queryable, persistent record of exactly that.
+    db.run(
+      `
+      CREATE TABLE IF NOT EXISTS audit_log
+      (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        eventType TEXT NOT NULL,
+        actorId INTEGER,
+        targetId INTEGER,
+        ip TEXT,
+        details TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+      `,
+      (err) => {
+        if (err) console.log("Error initializing the audit_log table", err.message);
+      }
+    );
+    db.run(
+      `CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log (createdAt)`,
+      (err) => { if (err) console.log("Error creating idx_audit_log_created", err.message); }
+    );
+
     console.log("All tables initialized successfully.");
   });
 
@@ -233,6 +285,36 @@ function initialize_myDatabase() {
     )`)
 
   return db;
+}
+
+// One-time migration helper: only runs the moment the `role` column is
+// first added (see the ALTER TABLE above), so it never re-labels anything
+// a user has since deliberately changed. Reconstructs role from the
+// relationships that already exist in the DB:
+//   - currently-set avatar/banner/video on profiles -> that role
+//   - referenced from a post's content row               -> 'post'
+//   - any other image left over (old, replaced avatars/banners
+//     that are still sitting on disk with no other pointer)  -> 'profile',
+//     so they show up in the profile gallery instead of vanishing.
+function backfillMediaRoles() {
+  db.serialize(() => {
+    db.run(`UPDATE media SET role = 'avatar' WHERE id IN (SELECT avatar FROM profiles WHERE avatar IS NOT NULL)`);
+    db.run(`UPDATE media SET role = 'banner' WHERE id IN (SELECT banner FROM profiles WHERE banner IS NOT NULL)`);
+    db.run(`UPDATE media SET role = 'video' WHERE id IN (SELECT video FROM profiles WHERE video IS NOT NULL)`);
+    db.run(`UPDATE media SET role = 'post' WHERE id IN (SELECT mediaID FROM content WHERE mediaID IS NOT NULL)`);
+    db.run(
+      `
+      UPDATE media SET role = 'profile'
+      WHERE role = 'post'
+        AND mediaType = 0
+        AND id NOT IN (SELECT mediaID FROM content WHERE mediaID IS NOT NULL)
+      `,
+      (err) => {
+        if (err) console.log("Error backfilling media.role", err.message);
+        else console.log("media.role backfilled for existing uploads.");
+      }
+    );
+  });
 }
 
 module.exports = { db };

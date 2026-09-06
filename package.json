@@ -19,11 +19,15 @@
     "dotenv": "^17.3.1",
     "ejs": "^6.0.1",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
-    "nodemon": "^3.1.14",
     "sqlite3": "^6.0.1",
     "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   },
   "repository": {
     "type": "git",

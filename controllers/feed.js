@@ -1,4 +1,9 @@
+const path = require("path");
 const { db } = require("../database/db");
+
+// See the matching note in controllers/profile.js — keeps stored paths as
+// portable forward-slash web paths regardless of the OS that wrote them.
+const toWebPath = (filePath) => filePath.split(path.sep).join("/");
 
 /* =========================
    1. HOME FEED
@@ -47,7 +52,10 @@ exports.getHomeFeed = (req, res) => {
 ========================= */
 exports.getUserPosts = (req, res) => {
   const viewerId = req.user.id;
-  const targetId = req.params.id === "me" ? req.user.id : req.params.id;
+  const targetId = req.params.id === "me" ? req.user.id : parseInt(req.params.id, 10);
+  if (!Number.isInteger(targetId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
 
   const limitParam = parseInt(req.query.limit, 10);
   const hasLimit = Number.isInteger(limitParam) && limitParam > 0;
@@ -93,9 +101,18 @@ exports.getUserPosts = (req, res) => {
 /* =========================
    NEW POST
 ========================= */
+const MAX_POST_TITLE_LENGTH = 255;
+const MAX_POST_BODY_LENGTH = 5000;
+
 exports.createPost = (req, res) => {
   const userId = req.user.id;
-  const { title, body } = req.body;
+  let { title, body } = req.body;
+
+  // Hardening: multipart fields aren't covered by express.json()'s size
+  // limit, so without an explicit cap here a client could send an
+  // arbitrarily large title/body as a form field.
+  title = typeof title === "string" ? title.trim().slice(0, MAX_POST_TITLE_LENGTH) : "";
+  body = typeof body === "string" ? body.trim().slice(0, MAX_POST_BODY_LENGTH) : "";
 
   if (!title && !body && !req.file) {
     return res.status(400).json({ message: "Post needs a title, text, or media" });
@@ -122,8 +139,8 @@ exports.createPost = (req, res) => {
       if (req.file) {
         const mediaType = req.file.mimetype.startsWith("video") ? 1 : 0;
         db.run(
-          "INSERT INTO media (userID, filePath, mediaType) VALUES (?,?,?)",
-          [userId, req.file.path, mediaType],
+          "INSERT INTO media (userID, filePath, mediaType, role) VALUES (?,?,?,?)",
+          [userId, toWebPath(req.file.path), mediaType, "post"],
           function (err3) {
             if (err3) return res.status(500).json({ message: "DB error" });
             finish(this.lastID);
@@ -142,9 +159,9 @@ exports.createPost = (req, res) => {
 ========================= */
 exports.toggleLike = (req, res) => {
   const userId = req.user.id;
-  const { postId } = req.body;
+  const postId = parseInt(req.body.postId, 10);
 
-  if (!postId) {
+  if (!Number.isInteger(postId)) {
     return res.status(400).json({ message: "postId required" });
   }
 
@@ -184,11 +201,14 @@ exports.toggleLike = (req, res) => {
 /* =========================
    3. COMMENTS
 ========================= */
+const MAX_COMMENT_LENGTH = 500;
+
 exports.addComment = (req, res) => {
   const userId = req.user.id;
-  const { postId, body } = req.body;
+  const postId = parseInt(req.body.postId, 10);
+  const body = typeof req.body.body === "string" ? req.body.body.trim().slice(0, MAX_COMMENT_LENGTH) : "";
 
-  if (!postId || !body) {
+  if (!Number.isInteger(postId) || !body) {
     return res.status(400).json({ message: "Missing data" });
   }
 
@@ -208,7 +228,10 @@ exports.addComment = (req, res) => {
 // ever read them back, so they went straight into a black hole. This
 // endpoint lists a post's comments, newest last, with the commenter's name.
 exports.getComments = (req, res) => {
-  const { postId } = req.params;
+  const postId = parseInt(req.params.postId, 10);
+  if (!Number.isInteger(postId)) {
+    return res.status(400).json({ message: "Invalid post id" });
+  }
 
   db.all(
     `
@@ -232,13 +255,13 @@ exports.getComments = (req, res) => {
 ========================= */
 exports.toggleFollow = (req, res) => {
   const followerId = req.user.id;
-  const { userId } = req.body;
+  const userId = parseInt(req.body.userId, 10);
 
-  if (!userId) {
+  if (!Number.isInteger(userId)) {
     return res.status(400).json({ message: "userId required" });
   }
 
-  if (parseInt(userId) === followerId) {
+  if (userId === followerId) {
     return res.status(403).json({ message: "You cannot follow yourself" });
   }
 
@@ -278,7 +301,10 @@ exports.toggleFollow = (req, res) => {
    FOLLOWERS (people who follow me)
 ========================= */
 exports.getFollowers = (req, res) => {
-  const userId = req.params.id === 'me' ? req.user.id : req.params.id;
+  const userId = req.params.id === 'me' ? req.user.id : parseInt(req.params.id, 10);
+  if (!Number.isInteger(userId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
 
   db.all(
     `
@@ -300,7 +326,10 @@ exports.getFollowers = (req, res) => {
    FOLLOWING (people I follow)
 ========================= */
 exports.getFollowing = (req, res) => {
-  const userId = req.params.id === 'me' ? req.user.id : req.params.id;
+  const userId = req.params.id === 'me' ? req.user.id : parseInt(req.params.id, 10);
+  if (!Number.isInteger(userId)) {
+    return res.status(400).json({ message: "Invalid user id" });
+  }
 
   db.all(
     `

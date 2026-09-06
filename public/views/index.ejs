@@ -94,7 +94,7 @@
       </div>
     </div>
 
-    <script>
+    <script nonce="<%= nonce %>">
       const API = "/api/v1";
 
       // LOGIN
@@ -157,7 +157,7 @@
       });
     </script>
 
-    <script>
+    <script nonce="<%= nonce %>">
       // ===== MATRIX RAIN BACKGROUND =====
       // Colors pulled straight from the palette in style.css:
       //   --page-bg-top (trail fade), --accent (mid glyphs), --link-hover (bright heads)
@@ -245,6 +245,6 @@
         }
       })();
     </script>
-    <%- include('partials/fx') %>
+    <%- include('partials/fx', { nonce }) %>
   </body>
 </html>

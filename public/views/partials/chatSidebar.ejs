@@ -1,0 +1,267 @@
+<!--
+  Persistent, collapsible DM sidebar — the "who can I message" browsing
+  surface. Split into two sections:
+    - CONVERSATIONS: people you've already exchanged DMs with, most
+      recent first, with a red unread badge on their avatar.
+    - PEOPLE: people you follow or who follow you that you haven't
+      messaged yet (see controllers/messages.js#getSuggestions for why
+      this is scoped to follows rather than every signup — it's meant to
+      be "people you actually know", not a directory for cold-DMing
+      strangers).
+
+  Toggled by the 💬 button in the nav (partials/nav.ejs); state (shown/
+  hidden) is remembered in localStorage. Clicking any row hands off to
+  window.openChatWith(...) from partials/chatWidget.ejs, which owns the
+  actual conversation thread + WebSocket connection — this file only
+  ever reads the two list endpoints and re-fetches them whenever
+  chatWidget dispatches a "dm:updated" event (new message, sent message,
+  thread marked read), so there's exactly one WebSocket connection per
+  tab, not two.
+-->
+<aside class="chat-sidebar hidden" id="chatSidebar" aria-label="Direct messages">
+  <div class="chat-sidebar-header">
+    <span>Messages</span>
+    <button type="button" class="chat-sidebar-close" id="chatSidebarClose" aria-label="Hide messages sidebar">✕</button>
+  </div>
+
+  <div class="chat-sidebar-body">
+    <div class="chat-sidebar-section">
+      <h3 class="chat-sidebar-heading">Conversations</h3>
+      <div id="sidebarConversations"><p class="no-comments">Loading...</p></div>
+    </div>
+
+    <div class="chat-sidebar-section">
+      <h3 class="chat-sidebar-heading">People</h3>
+      <p class="chat-sidebar-subtext">Folks you follow (or who follow you) that you haven't messaged yet.</p>
+      <div id="sidebarPeople"><p class="no-comments">Loading...</p></div>
+    </div>
+  </div>
+</aside>
+
+<script nonce="<%= nonce %>">
+  (function () {
+    const STORAGE_KEY = "chatSidebarVisible";
+    const sidebar = document.getElementById("chatSidebar");
+    const closeBtn = document.getElementById("chatSidebarClose");
+    const toggleBtn = document.getElementById("chatToggleBtn"); // lives in nav.ejs
+    const unreadBadge = document.getElementById("chatUnreadBadge"); // also in nav.ejs
+    const conversationsEl = document.getElementById("sidebarConversations");
+    const peopleEl = document.getElementById("sidebarPeople");
+
+    // ---------- show/hide, persisted across page loads ----------
+    function applyVisibility(visible) {
+      sidebar.classList.toggle("hidden", !visible);
+      document.body.classList.toggle("chat-sidebar-open", visible);
+      // The sidebar animates off-screen via transform (not display:none,
+      // which can't transition) — `inert` + aria-hidden keep it out of
+      // the tab order and screen readers while it's sitting off-canvas,
+      // so hiding it actually hides it for keyboard/AT users too, not
+      // just visually.
+      sidebar.inert = !visible;
+      sidebar.setAttribute("aria-hidden", String(!visible));
+      if (toggleBtn) toggleBtn.setAttribute("aria-expanded", String(visible));
+    }
+
+    function setVisible(visible) {
+      applyVisibility(visible);
+      try { localStorage.setItem(STORAGE_KEY, visible ? "1" : "0"); } catch (e) { /* storage disabled — just won't persist */ }
+    }
+
+    // Default: shown on a normal desktop-width screen, hidden on anything
+    // narrower (phones/small tablets) so it doesn't eat the page on first
+    // visit. After that, whatever the person last chose wins.
+    let initiallyVisible = window.matchMedia("(min-width: 900px)").matches;
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored !== null) initiallyVisible = stored === "1";
+    } catch (e) { /* storage disabled — use the width-based default */ }
+    applyVisibility(initiallyVisible);
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener("click", () => {
+        setVisible(sidebar.classList.contains("hidden"));
+      });
+    }
+    closeBtn.addEventListener("click", () => setVisible(false));
+
+    // ---------- rendering ----------
+    function timeLabel(iso) {
+      const d = new Date(iso.replace(" ", "T") + "Z");
+      if (Number.isNaN(d.getTime())) return "";
+      const now = new Date();
+      const sameDay = d.toDateString() === now.toDateString();
+      return sameDay
+        ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : d.toLocaleDateString([], { month: "short", day: "numeric" });
+    }
+
+    // Built with createElement + textContent throughout — a username or
+    // message preview is someone else's input, so it can never become
+    // innerHTML here.
+    function renderAvatar(person, unreadCount) {
+      const wrap = document.createElement("div");
+      wrap.className = "sidebar-avatar-wrap";
+
+      const img = document.createElement("img");
+      img.className = "sidebar-avatar";
+      img.src = person.avatarPath ? `/${person.avatarPath}` : "/default-avatar.png";
+      img.alt = "";
+      wrap.appendChild(img);
+
+      if (unreadCount > 0) {
+        const badge = document.createElement("span");
+        badge.className = "sidebar-avatar-badge";
+        badge.textContent = unreadCount > 9 ? "9+" : String(unreadCount);
+        wrap.appendChild(badge);
+      }
+
+      return wrap;
+    }
+
+    function renderConversationRow(conv) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "sidebar-row" + (conv.unreadCount > 0 ? " unread" : "");
+
+      row.appendChild(renderAvatar(conv, conv.unreadCount));
+
+      const meta = document.createElement("div");
+      meta.className = "sidebar-row-meta";
+
+      const nameLine = document.createElement("div");
+      nameLine.className = "sidebar-row-name";
+      nameLine.textContent = conv.username;
+      meta.appendChild(nameLine);
+
+      const preview = document.createElement("div");
+      preview.className = "sidebar-row-preview";
+      const mine = conv.lastSenderID === currentUserId ? "You: " : "";
+      preview.textContent = conv.lastBody ? mine + conv.lastBody : "Say hello!";
+      meta.appendChild(preview);
+
+      row.appendChild(meta);
+
+      if (conv.lastAt) {
+        const time = document.createElement("span");
+        time.className = "sidebar-row-time";
+        time.textContent = timeLabel(conv.lastAt);
+        row.appendChild(time);
+      }
+
+      row.addEventListener("click", () => {
+        if (typeof window.openChatWith === "function") window.openChatWith(conv.userId, conv.username);
+      });
+
+      return row;
+    }
+
+    function renderPersonRow(person) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "sidebar-row sidebar-row-person";
+
+      row.appendChild(renderAvatar(person, 0));
+
+      const meta = document.createElement("div");
+      meta.className = "sidebar-row-meta";
+      const nameLine = document.createElement("div");
+      nameLine.className = "sidebar-row-name";
+      nameLine.textContent = person.username;
+      meta.appendChild(nameLine);
+      row.appendChild(meta);
+
+      const startLabel = document.createElement("span");
+      startLabel.className = "sidebar-row-start";
+      startLabel.textContent = "Message";
+      row.appendChild(startLabel);
+
+      row.addEventListener("click", () => {
+        if (typeof window.openChatWith === "function") window.openChatWith(person.userId, person.username);
+      });
+
+      return row;
+    }
+
+    // ---------- data loading ----------
+    let currentUserId = null;
+
+    // chatWidget.ejs's init() can dispatch "dm:updated" before this file's
+    // own /api/v1/me call resolves (both fetch it independently, in
+    // parallel, and there's no guaranteed order). Routing every load
+    // through this shared promise means loadConversations() never renders
+    // the "You: " prefix using a still-null currentUserId — it just waits
+    // for the one in-flight identity fetch, instead of firing a second one.
+    const meReady = (async () => {
+      try {
+        const res = await fetch("/api/v1/me", { credentials: "include" });
+        if (!res.ok) return null;
+        const me = await res.json();
+        currentUserId = me.id;
+        return me.id;
+      } catch (e) {
+        return null;
+      }
+    })();
+
+    async function loadConversations() {
+      await meReady;
+      try {
+        const res = await fetch("/api/v1/messages", { credentials: "include" });
+        if (!res.ok) return [];
+        const conversations = await res.json();
+
+        conversationsEl.innerHTML = "";
+        if (!Array.isArray(conversations) || conversations.length === 0) {
+          conversationsEl.innerHTML = "<p class='no-comments'>No conversations yet.</p>";
+        } else {
+          conversations.forEach((c) => conversationsEl.appendChild(renderConversationRow(c)));
+        }
+
+        const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        if (unreadBadge) {
+          if (totalUnread > 0) {
+            unreadBadge.textContent = totalUnread > 99 ? "99+" : String(totalUnread);
+            unreadBadge.classList.remove("hidden");
+          } else {
+            unreadBadge.classList.add("hidden");
+          }
+        }
+
+        return conversations;
+      } catch (e) {
+        conversationsEl.innerHTML = "<p class='no-comments'>Couldn't load conversations.</p>";
+        return [];
+      }
+    }
+
+    async function loadPeople() {
+      try {
+        const res = await fetch("/api/v1/messages/suggestions", { credentials: "include" });
+        if (!res.ok) return;
+        const people = await res.json();
+
+        peopleEl.innerHTML = "";
+        if (!Array.isArray(people) || people.length === 0) {
+          peopleEl.innerHTML = "<p class='no-comments'>Follow someone (or have them follow you) and they'll show up here.</p>";
+        } else {
+          people.forEach((p) => peopleEl.appendChild(renderPersonRow(p)));
+        }
+      } catch (e) {
+        peopleEl.innerHTML = "<p class='no-comments'>Couldn't load suggestions.</p>";
+      }
+    }
+
+    async function refreshAll() {
+      await Promise.all([loadConversations(), loadPeople()]);
+    }
+
+    window.addEventListener("dm:updated", refreshAll);
+
+    // ---------- init ----------
+    (async function init() {
+      const me = await meReady;
+      if (!me) return; // not logged in — sidebar stays empty/inert
+      refreshAll();
+    })();
+  })();
+</script>

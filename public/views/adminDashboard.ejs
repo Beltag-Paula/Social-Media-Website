@@ -9,7 +9,7 @@
 </head>
 
 <body>
-    <%- include('partials/nav', { active: 'admin', showAdminLink: true }) %>
+    <%- include('partials/nav', { active: 'admin', showAdminLink: true, nonce }) %>
 
     <div class="page">
         <h1 class="rainbow-text">⚙ Control Panel ⚙</h1>
@@ -29,11 +29,23 @@
             <div class="module-body" id="bannedUsers"></div>
         </div>
 
+        <div class="module field-block">
+            <div class="module-title">🕵 Security Audit Log</div>
+            <div class="module-body">
+                <p class="gallery-hint">Failed logins, account lockouts, and every ban/approve/delete action — who did what, and when.</p>
+                <div id="auditLog"><p class="no-comments">Loading...</p></div>
+            </div>
+        </div>
+
         <button type="button" id="myProfileButton">Go to my profile</button>
         <button type="button" class="ghost logout-btn">Log out</button>
     </div>
 
-    <script>
+    <%- include('partials/lightbox', { nonce }) %>
+    <%- include('partials/chatWidget', { nonce }) %>
+    <%- include('partials/chatSidebar', { nonce }) %>
+
+    <script nonce="<%= nonce %>">
         // Containers
         const activeContainer = document.getElementById("activeUsers");
         const bannedContainer = document.getElementById("bannedUsers");
@@ -101,6 +113,25 @@
             deleteBtn.onclick = () => deleteUser(user.id);
 
             row.appendChild(statusSelect);
+
+            // Messaging only makes sense once someone's actually a member —
+            // for a pending signup there's nothing to discuss yet (that's
+            // what the status dropdown + ban reason are for), and for a
+            // banned account DMing them isn't the appeal channel this app
+            // has. Keeping it scoped to active users avoids a "why would I
+            // message someone who just signed up?" button on every row.
+            if (user.status === 1) {
+                const messageBtn = document.createElement("button");
+                messageBtn.className = "ghost";
+                messageBtn.textContent = "💬 Message";
+                messageBtn.onclick = () => {
+                    if (typeof window.openChatWith === "function") {
+                        window.openChatWith(user.id, user.username);
+                    }
+                };
+                row.appendChild(messageBtn);
+            }
+
             row.appendChild(deleteBtn);
 
             parent.appendChild(row);
@@ -203,9 +234,92 @@
         }
 
         refreshAll();
+
+        // ===== SECURITY AUDIT LOG =====
+        const EVENT_LABEL = {
+            login_success: "Login succeeded",
+            login_failed: "Login failed",
+            login_failed_unknown_user: "Login failed (unknown user)",
+            login_blocked_locked: "Login blocked (account locked)",
+            account_locked: "Account locked",
+            signup: "New signup",
+            signup_failed_duplicate: "Signup failed (username taken)",
+            admin_ban_user: "Admin banned a user",
+            admin_approve_user: "Admin approved a user",
+            admin_set_pending: "Admin set a user to pending",
+            admin_delete_user: "Admin deleted a user",
+        };
+
+        // Rendered with textContent throughout — audit rows can contain
+        // attacker-supplied usernames (e.g. a failed-login attempt against
+        // a name someone just typed in), so this can never be innerHTML.
+        function renderAuditRow(entry) {
+            const row = document.createElement("div");
+            row.className = "audit-row";
+
+            const label = document.createElement("span");
+            label.className = "audit-event";
+            label.textContent = EVENT_LABEL[entry.eventType] || entry.eventType;
+            row.appendChild(label);
+
+            const who = document.createElement("span");
+            who.className = "audit-who";
+            let whoText = entry.actorUsername || (entry.details ? "" : "unknown");
+            if (entry.targetUsername) whoText += ` → ${entry.targetUsername}`;
+            who.textContent = whoText;
+            row.appendChild(who);
+
+            if (entry.details) {
+                try {
+                    const parsed = JSON.parse(entry.details);
+                    if (parsed.username && !entry.actorUsername) {
+                        who.textContent = parsed.username + (whoText ? ` ${whoText}` : "");
+                    }
+                    if (parsed.banReason) {
+                        const reason = document.createElement("span");
+                        reason.className = "audit-detail";
+                        reason.textContent = `"${parsed.banReason}"`;
+                        row.appendChild(reason);
+                    }
+                } catch (e) { /* details wasn't JSON — ignore */ }
+            }
+
+            const ip = document.createElement("span");
+            ip.className = "audit-ip";
+            ip.textContent = entry.ip || "";
+            row.appendChild(ip);
+
+            const time = document.createElement("span");
+            time.className = "audit-time";
+            time.textContent = new Date(entry.createdAt.replace(" ", "T") + "Z").toLocaleString();
+            row.appendChild(time);
+
+            return row;
+        }
+
+        async function loadAuditLog() {
+            const container = document.getElementById("auditLog");
+            try {
+                const res = await fetch("/api/v1/admin/audit-log?limit=50", { credentials: "include" });
+                if (!res.ok) return;
+                const entries = await res.json();
+                container.innerHTML = "";
+
+                if (!Array.isArray(entries) || entries.length === 0) {
+                    container.innerHTML = "<p class='no-comments'>No events recorded yet.</p>";
+                    return;
+                }
+
+                entries.forEach(e => container.appendChild(renderAuditRow(e)));
+            } catch (e) {
+                container.innerHTML = "<p class='no-comments'>Couldn't load the audit log.</p>";
+            }
+        }
+
+        loadAuditLog();
     </script>
 
-    <%- include('partials/fx') %>
+    <%- include('partials/fx', { nonce }) %>
 
 </body>
 
