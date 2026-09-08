@@ -27,40 +27,15 @@ const { attachChatServer } = require("./chat/chatHub.js");
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-// If (and only if) this app is actually running behind a trusted reverse
-// proxy (nginx, a load balancer, Cloudflare, etc.), set TRUST_PROXY=1 so
-// req.ip and the rate limiters below key off the real client IP from
-// X-Forwarded-For instead of the proxy's own address. Leaving this off
-// (the default) is the safe choice when running directly exposed: turning
-// it on without an actual proxy in front would let any client set its own
-// X-Forwarded-For header and trivially bypass every IP-based rate limit.
 if (process.env.TRUST_PROXY === "1") {
   app.set("trust proxy", 1);
 }
 
-// SECURITY CHANGE: stop advertising "X-Powered-By: Express" — it costs
-// nothing to remove and gives an attacker one fewer free hint about the
-// stack they're probing.
 app.disable("x-powered-by");
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "public", "views"));
 
-// SECURITY CHANGE: with cookie-based auth, the browser only attaches
-// cookies to fetch() calls that pass credentials: "include" — and CORS
-// must explicitly allow credentials, since cors() with no options here
-// wouldn't send Access-Control-Allow-Credentials and the cookie would be
-// silently dropped on cross-origin requests. origin: true reflects the
-// request's own origin, which is required (a literal "*" is rejected by
-// browsers when credentials are involved).
-//
-// FOLLOW-UP SECURITY CHANGE: reflecting every origin is fine for local
-// development, but on a real deployment it means any website can make a
-// credentialed fetch() to this API and read the response — the only thing
-// stopping actual cookie theft is that the login cookie is SameSite=Strict
-// (see authUsers.js), so browsers won't attach it cross-site in the first
-// place. Set ALLOWED_ORIGINS in .env (comma-separated) in production to
-// pin this down to your real domain(s) instead of trusting every origin.
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim()).filter(Boolean)
   : null;
@@ -72,18 +47,6 @@ app.use(
   }),
 );
 
-// SECURITY CHANGE: helmet sets a battery of protective response headers
-// (X-Content-Type-Options: nosniff, X-Frame-Options/frame-ancestors to
-// block clickjacking, HSTS, etc.) that this app previously sent none of.
-//
-// The Content-Security-Policy below is the important one: every page here
-// uses inline <script> blocks, which a default/strict CSP would simply
-// refuse to run. Rather than weakening it with 'unsafe-inline' (which
-// mostly cancels out CSP's XSS protection), each request gets a random
-// nonce; every inline <script> in the .ejs views carries nonce="<%= nonce %>"
-// (see the nonce middleware below), so only script the server itself chose
-// to render can execute — an attacker-injected <script> tag still can't,
-// even if they find some other flaw that lets them get one onto the page.
 app.use((request, response, next) => {
   response.locals.nonce = crypto.randomBytes(16).toString("base64");
   next();
@@ -99,9 +62,6 @@ app.use(
         styleSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "blob:"],
         mediaSrc: ["'self'"],
-        // 'self' covers same-origin fetch(); ws:/wss: is needed on top of
-        // that because connect-src doesn't automatically cover WebSocket
-        // upgrades to the same host under every browser.
         connectSrc: ["'self'", "ws:", "wss:"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
@@ -114,25 +74,15 @@ app.use(
 );
 
 app.use(cookieParser());
-// Explicit body size caps: express.json()'s own default (100kb) already
-// protects against giant-payload abuse, but spelling it out here makes the
-// limit visible instead of implicit.
 app.use(express.json({ limit: "100kb" }));
 
 // Serve uploads for images/videos
 app.use("/uploads", express.static("uploads"));
 
-// Serve static assets (css, default avatar/banner images, client-side js
-// if any is added later). The HTML pages themselves are no longer static
-// files here — they're rendered from /views below.
 const publicPath = path.join(__dirname, "public");
 app.use(express.static(publicPath));
 
-// SECURITY: brute-force guards on the endpoints most worth throttling —
-// auth (credential stuffing / password guessing) and username search
-// (enumeration). These count per source IP; standardHeaders reports the
-// limit via RateLimit-* response headers, legacyHeaders is turned off
-// since X-RateLimit-* is the older, non-standard convention.
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
@@ -149,12 +99,7 @@ const searchLimiter = rateLimit({
   message: { message: "Too many searches. Please slow down." },
 });
 
-// OWASP A04 (Insecure Design): auth/search had rate limiting from the
-// start, but write-heavy social actions (posting, following, liking,
-// commenting, sending a DM over the REST fallback) had none at all —
-// meaning a single account could spam any of them as fast as the network
-// allowed. These are deliberately more generous than the auth limiter
-// (this is normal usage, not just attack traffic) but still bound it.
+
 const postLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   limit: 20,

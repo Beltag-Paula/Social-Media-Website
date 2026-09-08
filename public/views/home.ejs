@@ -54,20 +54,22 @@
 
   <script nonce="<%= nonce %>">
     const API = "/api/v1";
+    function withImageFallback(imgEl, fallbackSrc) {
+      imgEl.onerror = function () {
+        imgEl.onerror = null;
+        imgEl.src = fallbackSrc;
+      };
+    }
 
-    // ===== WHO AM I (drives the admin nav link) =====
     async function loadMe() {
       try {
         const res = await fetch(`${API}/me`, { credentials: "include" });
         if (!res.ok) return;
         const me = await res.json();
-        if (me.isAdmin) document.getElementById("adminNavLink").style.display = "inline-block";
+        if (me.isAdmin) document.getElementById("adminNavLink").classList.remove("hidden");
       } catch (e) { /* not logged in, nav link just stays hidden */ }
     }
 
-    // ===== FEED =====
-    // Kept in sync with what's on screen so post images can open the
-    // shared lightbox with working Prev/Next across the whole feed.
     let currentFeedImages = [];
 
     async function loadFeed() {
@@ -99,8 +101,6 @@
       });
     }
 
-    // Built with createElement + textContent (not innerHTML) so a post
-    // body or username can never inject a script into the page.
     function renderPost(post, imageIndex) {
       const card = document.createElement("div");
       card.className = "module post-module";
@@ -110,6 +110,7 @@
       if (post.avatarPath) {
         const avatar = document.createElement("img");
         avatar.className = "mini-avatar";
+        withImageFallback(avatar, "/default-avatar.svg");
         avatar.src = `/${post.avatarPath}`;
         avatar.alt = "";
         titleBar.appendChild(avatar);
@@ -118,7 +119,6 @@
       nameSpan.textContent = post.title ? `${post.username} — ${post.title}` : post.username;
       titleBar.appendChild(nameSpan);
 
-      // A quick way into a DM with the poster, right from their post.
       if (typeof window.openChatWith === "function") {
         const msgBtn = document.createElement("button");
         msgBtn.type = "button";
@@ -145,6 +145,7 @@
         const isVideo = /\.(mp4|webm|mov)$/i.test(post.mediaPath);
         const media = document.createElement(isVideo ? "video" : "img");
         media.className = "post-media";
+        if (!isVideo) withImageFallback(media, "/default-image.svg");
         media.src = `/${post.mediaPath}`;
         if (isVideo) {
           media.controls = true;
@@ -163,7 +164,7 @@
       meta.textContent = new Date(post.createdAt).toLocaleString();
       body.appendChild(meta);
 
-      // ----- actions: like + comment toggle -----
+
       const actionBar = document.createElement("div");
       actionBar.className = "action-bar";
 
@@ -191,7 +192,7 @@
       body.appendChild(actionBar);
       body.appendChild(commentToggle);
 
-      // ----- comments box (built once, shown/hidden + lazy loaded) -----
+
       const commentsBox = document.createElement("div");
       commentsBox.className = "comments-box";
       commentsBox.style.display = "none";
@@ -281,7 +282,6 @@
       return card;
     }
 
-    // ===== NEW POST =====
     document.getElementById("newPostForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const title = document.getElementById("postTitle").value.trim();

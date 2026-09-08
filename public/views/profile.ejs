@@ -14,7 +14,7 @@
 
   <div class="page">
     <div class="profile-banner image-dropzone" id="bannerDropzone" tabindex="0" role="button" aria-label="Change banner">
-      <img id="bannerImg" src="/default-banner.jpg" alt="Profile banner" />
+      <img id="bannerImg" src="/default-banner.svg" alt="Profile banner" />
       <div class="image-dropzone-overlay">
         <span class="dropzone-icon">🏞</span>
         <span class="dropzone-text">Drop or click to change banner</span>
@@ -24,7 +24,7 @@
 
     <div class="profile-header">
       <div class="avatar-wrap image-dropzone" id="avatarDropzone" tabindex="0" role="button" aria-label="Change avatar">
-        <img id="avatarDisplay" class="avatar" src="/default-avatar.png" alt="Avatar" />
+        <img id="avatarDisplay" class="avatar" src="/default-avatar.svg" alt="Avatar" />
         <div class="image-dropzone-overlay">
           <span class="dropzone-icon">🖼</span>
         </div>
@@ -107,6 +107,22 @@
 
   <script nonce="<%= nonce %>">
     const API_BASE = "/api/v1";
+
+    // A gallery/avatar/banner reference in the DB doesn't guarantee the
+    // underlying file still exists on disk (deleted upload, moved volume,
+    // etc.) — without this, a missing file rendered as raw, unstyled alt
+    // text instead of failing gracefully. Assigning to the .onerror
+    // PROPERTY (not an inline onerror="" HTML attribute, which the CSP
+    // in server.js blocks the same way it blocks inline <script> — see
+    // nav.ejs for that exact fix) is what lets this run at all, and also
+    // means re-fetching a profile (e.g. after a new upload) replaces the
+    // handler instead of stacking a new one on the same reused <img> each time.
+    function withImageFallback(imgEl, fallbackSrc) {
+      imgEl.onerror = function () {
+        imgEl.onerror = null;
+        imgEl.src = fallbackSrc;
+      };
+    }
     let welcomeRevealed = false; // so the decrypt-reveal only fires on first load, not every refetch
     let isOwnProfile = true;
 
@@ -144,7 +160,7 @@
         if (!res.ok) return;
         const me = await res.json();
         myId = me.id;
-        if (me.isAdmin) document.getElementById("adminNavLink").style.display = "inline-block";
+        if (me.isAdmin) document.getElementById("adminNavLink").classList.remove("hidden");
       } catch (e) { /* not logged in */ }
     }
 
@@ -172,8 +188,16 @@
 
       document.getElementById("bioText").value = data.bio || "";
 
-      if (data.avatarPath) document.getElementById("avatarDisplay").src = `/${data.avatarPath}`;
-      if (data.bannerPath) document.getElementById("bannerImg").src = `/${data.bannerPath}`;
+      if (data.avatarPath) {
+        const avatarEl = document.getElementById("avatarDisplay");
+        withImageFallback(avatarEl, "/default-avatar.svg");
+        avatarEl.src = `/${data.avatarPath}`;
+      }
+      if (data.bannerPath) {
+        const bannerEl = document.getElementById("bannerImg");
+        withImageFallback(bannerEl, "/default-banner.svg");
+        bannerEl.src = `/${data.bannerPath}`;
+      }
 
       const videoEl = document.getElementById("profileVideo");
       const sourceEl = document.getElementById("videoSource");
@@ -306,6 +330,7 @@
         const isVideo = /\.(mp4|webm|mov)$/i.test(post.mediaPath);
         const media = document.createElement(isVideo ? "video" : "img");
         media.className = "post-preview-media";
+        if (!isVideo) withImageFallback(media, "/default-image.svg");
         media.src = `/${post.mediaPath}`;
         if (isVideo) {
           media.controls = true;
@@ -406,6 +431,10 @@
       tile.className = "gallery-tile";
 
       const img = document.createElement("img");
+      const galleryFallback = item.role === "avatar" ? "/default-avatar.svg"
+        : item.role === "banner" ? "/default-banner.svg"
+        : "/default-image.svg";
+      withImageFallback(img, galleryFallback);
       img.src = `/${item.filePath}`;
       img.alt = ROLE_LABEL[item.role] || "Photo";
       img.loading = "lazy";

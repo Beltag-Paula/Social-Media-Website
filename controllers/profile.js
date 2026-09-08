@@ -1,25 +1,8 @@
 const path = require("path");
 const { db } = require("../database/db");
 
-// BUG FIX (gallery): filePath used to be saved exactly as multer/path.join
-// produced it, which uses the OS's own separator. On Linux (this app's
-// Docker image) that's "/", so it happened to work — but the value was
-// never normalized, so anything built or tested on Windows would save
-// "uploads\\user_1\\123.jpg" into the DB, and `/${filePath}` would then
-// produce a broken URL. Forcing forward slashes here means the stored path
-// is always a valid, portable web path no matter what OS wrote the file.
 const toWebPath = (filePath) => filePath.split(path.sep).join("/");
 
-/* =========================
-   SAVE MEDIA
-   role: 'avatar' | 'banner' | 'video' | 'post' | 'profile'
-   Tagging the role (instead of just userID/filePath/mediaType) is what
-   makes the gallery possible: profiles.avatar/banner only ever remembers
-   the CURRENT image, so past uploads used to become invisible to the app
-   the moment you changed your picture, even though the file was still on
-   disk. With role stored on every row, "all my past avatars/banners" is a
-   simple, honest query instead of data that's silently orphaned.
-========================= */
 const saveMedia = (userId, filePath, type, role) => {
   return new Promise((resolve, reject) => {
     db.run(
@@ -34,9 +17,6 @@ const saveMedia = (userId, filePath, type, role) => {
 };
 
 
-/* =========================
-   PROFILE DATA
-========================= */
 exports.getProfileData = (req, res) => {
   const targetId = req.params.id === 'me' ? req.user.id : parseInt(req.params.id, 10);
   if (!Number.isInteger(targetId)) {
@@ -71,10 +51,6 @@ exports.getProfileData = (req, res) => {
   });
 };
 
-
-/* =========================
-   BIO
-========================= */
 const MAX_BIO_LENGTH = 1000;
 
 exports.updateBio = (req, res) => {
@@ -89,17 +65,12 @@ exports.updateBio = (req, res) => {
     `,
     [req.user.id, bio],
     (err) => {
-      // BUG FIX: this used to always report success, even if the write failed.
       if (err) return res.status(500).json({ message: "DB error" });
       res.json({ message: "Bio updated" });
     }
   );
 };
 
-
-/* =========================
-   AVATAR / BANNER / VIDEO
-========================= */
 exports.uploadAvatar = async (req, res) => {
   try {
     const mediaId = await saveMedia(req.user.id, req.file.path, 0, "avatar");
@@ -166,11 +137,6 @@ exports.uploadVideo = async (req, res) => {
   }
 };
 
-/* =========================
-   GALLERY
-   Every avatar/banner a user has ever uploaded (see the role column /
-   backfill migration in database/db.js) — not just the current one.
-========================= */
 exports.getGallery = (req, res) => {
   const targetId = req.params.id === "me" ? req.user.id : parseInt(req.params.id, 10);
   if (!Number.isInteger(targetId)) {
@@ -193,17 +159,6 @@ exports.getGallery = (req, res) => {
   );
 };
 
-// Lets you re-pick an old avatar/banner from the gallery instead of
-// re-uploading it. Ownership is checked against the media row itself
-// (not trusted from the request body), so you can only ever set your own
-// past uploads as your current picture — never someone else's media id.
-//
-// SECURITY: `column` is only ever passed in below as one of the two
-// literal strings at the bottom of this file — never anything derived
-// from a request — but it's whitelisted against ALLOWED_COLUMNS anyway
-// as defense-in-depth, so this function can never be reused later (by
-// someone editing this file without reading this comment) in a way that
-// puts request-controlled data into that identifier position.
 const ALLOWED_COLUMNS = new Set(["avatar", "banner"]);
 
 function selectFromGallery(column) {

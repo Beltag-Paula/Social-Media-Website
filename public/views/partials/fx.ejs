@@ -1,13 +1,6 @@
 <canvas id="particleCanvas" aria-hidden="true"></canvas>
 
 <script nonce="<%= nonce %>">
-  // ===== DECRYPT REVEAL + GLITCH + PARTICLE SCROLL (shared across pages) =====
-  // Auto-applies to whatever h1.rainbow-text / .module-title elements are
-  // already in the DOM by the time this partial is included (so put the
-  // include AFTER your page content, near the end of <body>). Pages whose
-  // title is filled in later by JS (e.g. profile.ejs) can call
-  // window.__fx.decryptReveal(el, opts, onDone) / window.__fx.startGlitch(el)
-  // manually once that text is set.
   (function () {
     const prefersReducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)"
@@ -16,10 +9,6 @@
     window.__fx = window.__fx || {};
     window.__fx.prefersReducedMotion = prefersReducedMotion;
 
-    /* ---------- DECRYPT REVEAL ----------
-       Scrambles an element's text through cipher glyphs, then resolves it
-       into the real text over `duration` ms. Uses Array.from so multi-byte
-       characters (emoji) reveal cleanly instead of splitting mid-character. */
     const CIPHER_CHARS = "!<>-_\\/[]{}=+*^?#$%01アイウエオ";
 
     function decryptReveal(el, { duration = 900, delay = 0 } = {}, onDone) {
@@ -61,9 +50,6 @@
     }
     window.__fx.decryptReveal = decryptReveal;
 
-    /* ---------- GLITCH BURSTS ----------
-       Occasional chromatic-aberration flicker, driven by the .glitch /
-       .glitch-active classes defined in style.css. */
     function startGlitch(el) {
       if (!el || prefersReducedMotion) return;
       el.classList.add("glitch");
@@ -80,9 +66,6 @@
     }
     window.__fx.startGlitch = startGlitch;
 
-    // Auto-apply to whatever static title/module-title elements already
-    // exist in the DOM at this point (dynamically-inserted content like
-    // feed posts or admin user rows hasn't loaded yet, so it's untouched).
     const titleEl = document.querySelector("h1.rainbow-text");
     const moduleTitleEls = document.querySelectorAll(".module-title");
 
@@ -93,14 +76,11 @@
       decryptReveal(el, { duration: 650, delay: 300 + i * 150 });
     });
 
-    /* ---------- PARTICLE SCROLL ----------
-       Small embers drifting upward, colored to match --accent, with a
-       subtle vertical parallax offset tied to window.scrollY. */
     const particleCanvas = document.getElementById("particleCanvas");
     if (!particleCanvas || !particleCanvas.getContext) return;
 
     const pctx = particleCanvas.getContext("2d");
-    const PARTICLE_RGB = "102, 192, 244"; // --accent
+    const PARTICLE_RGB = "102, 192, 244";
 
     let pW = 0, pH = 0, particles = [];
 
@@ -131,7 +111,7 @@
         if (p.y < -10) Object.assign(p, spawnParticle(false));
 
         const x = p.x + Math.sin(p.sway) * 8;
-        const y = p.y + scrollOffset * 0.06; // parallax: drifts slower than the page
+        const y = p.y + scrollOffset * 0.06;
 
         pctx.beginPath();
         pctx.fillStyle = `rgba(${PARTICLE_RGB}, ${p.alpha})`;
@@ -165,7 +145,7 @@
         else startParticles();
       });
     } else {
-      drawParticles(0); // single static frame, no animation
+      drawParticles(0);
     }
   })();
 </script>

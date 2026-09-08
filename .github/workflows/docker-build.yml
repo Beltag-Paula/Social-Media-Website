@@ -24,11 +24,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      # OWASP A06 (Vulnerable & Outdated Components): fail the build if a
-      # high/critical severity vulnerability shows up in a dependency,
-      # instead of only finding out whenever someone happens to run
-      # `npm audit` by hand.
+        
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

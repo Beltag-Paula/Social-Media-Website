@@ -114,12 +114,6 @@
 
             row.appendChild(statusSelect);
 
-            // Messaging only makes sense once someone's actually a member —
-            // for a pending signup there's nothing to discuss yet (that's
-            // what the status dropdown + ban reason are for), and for a
-            // banned account DMing them isn't the appeal channel this app
-            // has. Keeping it scoped to active users avoids a "why would I
-            // message someone who just signed up?" button on every row.
             if (user.status === 1) {
                 const messageBtn = document.createElement("button");
                 messageBtn.className = "ghost";
@@ -234,8 +228,6 @@
         }
 
         refreshAll();
-
-        // ===== SECURITY AUDIT LOG =====
         const EVENT_LABEL = {
             login_success: "Login succeeded",
             login_failed: "Login failed",
@@ -250,9 +242,6 @@
             admin_delete_user: "Admin deleted a user",
         };
 
-        // Rendered with textContent throughout — audit rows can contain
-        // attacker-supplied usernames (e.g. a failed-login attempt against
-        // a name someone just typed in), so this can never be innerHTML.
         function renderAuditRow(entry) {
             const row = document.createElement("div");
             row.className = "audit-row";

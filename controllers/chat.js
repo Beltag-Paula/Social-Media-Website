@@ -110,8 +110,6 @@ exports.getMessages = async (req, res) => {
   }
 };
 
-// Used by the WebSocket server. It deliberately performs the same
-// authorization check as the HTTP history endpoint.
 exports.authorizeConversation = getConversationForUser;
 exports.insertMessage = async (conversationId, senderId, body) => {
   const cleanBody = typeof body === "string" ? body.trim() : "";

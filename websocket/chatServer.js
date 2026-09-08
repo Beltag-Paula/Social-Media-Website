@@ -17,8 +17,7 @@ const wss = new WebSocket.WebSocketServer({
   perMessageDeflate: false,
 });
 
-// A user may have several tabs/devices connected at once.
-const connectedUsers = new Map(); // userId -> Set<WebSocket>
+const connectedUsers = new Map();
 
 function parseCookies(header = "") {
   const cookies = {};
@@ -30,7 +29,6 @@ function parseCookies(header = "") {
     try {
       cookies[key] = decodeURIComponent(value);
     } catch {
-      // Ignore malformed cookie values.
     }
   }
   return cookies;
@@ -109,7 +107,6 @@ wss.on("connection", (socket, request, user) => {
         return closePolicy(socket, "Invalid conversation");
       }
 
-      // The sender ID is NEVER accepted from the browser.
       const conversation = await chat.authorizeConversation(conversationId, userId);
       if (!conversation) {
         return closePolicy(socket, "Not a member of this conversation");
@@ -125,7 +122,6 @@ wss.on("connection", (socket, request, user) => {
         message,
       };
 
-      // Echo to all of the sender's tabs and deliver to the recipient's tabs.
       sendToUser(userId, payload);
       sendToUser(recipientId, payload);
     } catch (err) {
@@ -151,8 +147,6 @@ wss.on("connection", (socket, request, user) => {
 
 function attachChatWebSocket(server) {
   server.on("upgrade", (request, socket, head) => {
-    // Origin is checked before accepting the upgrade. APP_ORIGIN should be
-    // the exact origin of the application, e.g. https://example.com.
     if (request.headers.origin !== APP_ORIGIN) {
       socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
       socket.destroy();

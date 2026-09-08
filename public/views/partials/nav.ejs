@@ -12,20 +12,13 @@
     <button id="globalSearchBtn">Go</button>
     <div id="globalSearchResults"></div>
   </div>
-  <button type="button" class="chat-toggle-btn" id="chatToggleBtn" aria-label="Messages" title="Messages" aria-expanded="false" aria-controls="chatSidebar">
-    💬<span class="chat-unread-badge hidden" id="chatUnreadBadge">0</span>
+  <button type="button" class="chat-toggle-btn" id="chatToggleBtn" aria-label="Toggle messages sidebar" title="Messages" aria-expanded="false" aria-controls="chatSidebar">
+    <span class="chat-toggle-icon" id="chatToggleIcon">☰</span><span class="chat-unread-badge hidden" id="chatUnreadBadge">0</span>
   </button>
   <button class="ghost logout-btn">Log out</button>
 </nav>
 
 <script nonce="<%= nonce %>">
-  // SECURITY CHANGE: this used to be onclick="executeGlobalSearch()" on the
-  // button itself. Inline event-handler attributes run under the same CSP
-  // rule as inline <script> tags and can't carry a nonce, so a strict
-  // script-src (see server.js) blocks them outright — the fix is just to
-  // attach the listener from script instead. executeGlobalSearch() itself
-  // is still defined further down each page's own <script>, which runs
-  // before this button can ever actually be clicked.
   document.getElementById("globalSearchBtn").addEventListener("click", () => {
     if (typeof executeGlobalSearch === "function") executeGlobalSearch();
   });

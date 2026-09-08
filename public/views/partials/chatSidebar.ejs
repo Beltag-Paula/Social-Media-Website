@@ -1,23 +1,3 @@
-<!--
-  Persistent, collapsible DM sidebar — the "who can I message" browsing
-  surface. Split into two sections:
-    - CONVERSATIONS: people you've already exchanged DMs with, most
-      recent first, with a red unread badge on their avatar.
-    - PEOPLE: people you follow or who follow you that you haven't
-      messaged yet (see controllers/messages.js#getSuggestions for why
-      this is scoped to follows rather than every signup — it's meant to
-      be "people you actually know", not a directory for cold-DMing
-      strangers).
-
-  Toggled by the 💬 button in the nav (partials/nav.ejs); state (shown/
-  hidden) is remembered in localStorage. Clicking any row hands off to
-  window.openChatWith(...) from partials/chatWidget.ejs, which owns the
-  actual conversation thread + WebSocket connection — this file only
-  ever reads the two list endpoints and re-fetches them whenever
-  chatWidget dispatches a "dm:updated" event (new message, sent message,
-  thread marked read), so there's exactly one WebSocket connection per
-  tab, not two.
--->
 <aside class="chat-sidebar hidden" id="chatSidebar" aria-label="Direct messages">
   <div class="chat-sidebar-header">
     <span>Messages</span>
@@ -44,22 +24,31 @@
     const sidebar = document.getElementById("chatSidebar");
     const closeBtn = document.getElementById("chatSidebarClose");
     const toggleBtn = document.getElementById("chatToggleBtn"); // lives in nav.ejs
+    const toggleIcon = document.getElementById("chatToggleIcon"); // also in nav.ejs
     const unreadBadge = document.getElementById("chatUnreadBadge"); // also in nav.ejs
     const conversationsEl = document.getElementById("sidebarConversations");
     const peopleEl = document.getElementById("sidebarPeople");
 
-    // ---------- show/hide, persisted across page loads ----------
+    let lastTotalUnread = 0;
+
+    function updateAggregateBadge() {
+      const sidebarClosed = sidebar.classList.contains("hidden");
+      if (sidebarClosed && lastTotalUnread > 0) {
+        unreadBadge.textContent = lastTotalUnread > 99 ? "99+" : String(lastTotalUnread);
+        unreadBadge.classList.remove("hidden");
+      } else {
+        unreadBadge.classList.add("hidden");
+      }
+    }
+
     function applyVisibility(visible) {
       sidebar.classList.toggle("hidden", !visible);
       document.body.classList.toggle("chat-sidebar-open", visible);
-      // The sidebar animates off-screen via transform (not display:none,
-      // which can't transition) — `inert` + aria-hidden keep it out of
-      // the tab order and screen readers while it's sitting off-canvas,
-      // so hiding it actually hides it for keyboard/AT users too, not
-      // just visually.
       sidebar.inert = !visible;
       sidebar.setAttribute("aria-hidden", String(!visible));
       if (toggleBtn) toggleBtn.setAttribute("aria-expanded", String(visible));
+      if (toggleIcon) toggleIcon.textContent = visible ? "✕" : "☰";
+      updateAggregateBadge();
     }
 
     function setVisible(visible) {
@@ -67,9 +56,6 @@
       try { localStorage.setItem(STORAGE_KEY, visible ? "1" : "0"); } catch (e) { /* storage disabled — just won't persist */ }
     }
 
-    // Default: shown on a normal desktop-width screen, hidden on anything
-    // narrower (phones/small tablets) so it doesn't eat the page on first
-    // visit. After that, whatever the person last chose wins.
     let initiallyVisible = window.matchMedia("(min-width: 900px)").matches;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -84,7 +70,6 @@
     }
     closeBtn.addEventListener("click", () => setVisible(false));
 
-    // ---------- rendering ----------
     function timeLabel(iso) {
       const d = new Date(iso.replace(" ", "T") + "Z");
       if (Number.isNaN(d.getTime())) return "";
@@ -95,16 +80,17 @@
         : d.toLocaleDateString([], { month: "short", day: "numeric" });
     }
 
-    // Built with createElement + textContent throughout — a username or
-    // message preview is someone else's input, so it can never become
-    // innerHTML here.
     function renderAvatar(person, unreadCount) {
       const wrap = document.createElement("div");
       wrap.className = "sidebar-avatar-wrap";
 
       const img = document.createElement("img");
       img.className = "sidebar-avatar";
-      img.src = person.avatarPath ? `/${person.avatarPath}` : "/default-avatar.png";
+      img.onerror = function () {
+        img.onerror = null;
+        img.src = "/default-avatar.svg";
+      };
+      img.src = person.avatarPath ? `/${person.avatarPath}` : "/default-avatar.svg";
       img.alt = "";
       wrap.appendChild(img);
 
@@ -182,15 +168,8 @@
       return row;
     }
 
-    // ---------- data loading ----------
     let currentUserId = null;
 
-    // chatWidget.ejs's init() can dispatch "dm:updated" before this file's
-    // own /api/v1/me call resolves (both fetch it independently, in
-    // parallel, and there's no guaranteed order). Routing every load
-    // through this shared promise means loadConversations() never renders
-    // the "You: " prefix using a still-null currentUserId — it just waits
-    // for the one in-flight identity fetch, instead of firing a second one.
     const meReady = (async () => {
       try {
         const res = await fetch("/api/v1/me", { credentials: "include" });
@@ -218,14 +197,8 @@
         }
 
         const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
-        if (unreadBadge) {
-          if (totalUnread > 0) {
-            unreadBadge.textContent = totalUnread > 99 ? "99+" : String(totalUnread);
-            unreadBadge.classList.remove("hidden");
-          } else {
-            unreadBadge.classList.add("hidden");
-          }
-        }
+        lastTotalUnread = totalUnread;
+        updateAggregateBadge();
 
         return conversations;
       } catch (e) {
@@ -257,10 +230,9 @@
 
     window.addEventListener("dm:updated", refreshAll);
 
-    // ---------- init ----------
     (async function init() {
       const me = await meReady;
-      if (!me) return; // not logged in — sidebar stays empty/inert
+      if (!me) return;
       refreshAll();
     })();
   })();

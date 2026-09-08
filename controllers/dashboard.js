@@ -4,13 +4,6 @@ const { logEvent, clientIp } = require("../utils/auditLog");
 const VALID_STATUSES = [0, 1, 2]; // pending, active, banned
 
 exports.active = (request, response) => {
-  // BUG FIX: this used to select only id/username, leaving `status`
-  // undefined on every row the client received. The dashboard's status
-  // badge fell back to "pending" whenever status was undefined — so every
-  // user in every section (active, pending, banned) rendered a "pending"
-  // badge regardless of which list they were actually in. Selecting the
-  // real column fixes the badge at the source instead of patching the
-  // fallback client-side.
   db.all("SELECT id, username, status FROM users WHERE status = 1", [], (err, rows) => {
     if (err) return response.status(500).json({ message: "DB error" });
     response.json({ rows });
@@ -67,10 +60,6 @@ exports.deleteUser = (request, response) => {
     db.run("DELETE FROM users WHERE id = ?", [id], (err2) => {
       if (err2) return response.status(500).json({ message: "DB error" });
 
-      // OWASP A09: every admin action that removes/restricts an account
-      // is worth a durable record of who did it and to whom — this is
-      // exactly the kind of action a "who did this?!" question gets asked
-      // about later.
       logEvent("admin_delete_user", {
         actorId: request.user.id,
         targetId: id,
@@ -93,10 +82,6 @@ exports.updateStatus = (request, response) => {
     return response.status(400).json({ message: "Invalid user id" });
   }
 
-  // BUG FIX / hardening: status used to be written to the DB with no
-  // validation at all — any integer (or non-numeric value coerced by
-  // SQLite) would be silently accepted, potentially leaving accounts in a
-  // status the rest of the app doesn't know how to interpret.
   if (!VALID_STATUSES.includes(status)) {
     return response.status(400).json({ message: "Invalid status value" });
   }
@@ -122,8 +107,6 @@ exports.updateStatus = (request, response) => {
   }
 
   db.run(sql, params, function (err) {
-    // BUG FIX: this used to report success ("Status updated") even when
-    // the query failed, which hid real DB errors from the admin UI.
     if (err) return response.status(500).json({ message: "DB error" });
 
     if (this.changes === 0) {
@@ -142,9 +125,6 @@ exports.updateStatus = (request, response) => {
   });
 };
 
-// GET /api/v1/admin/audit-log?limit=100 — recent security events (failed
-// logins, lockouts, admin actions). Admin-only, read-only, capped at 200
-// rows per request so it can't be used to pull the whole table at once.
 exports.getAuditLog = (request, response) => {
   const limit = Math.min(Math.max(parseInt(request.query.limit, 10) || 100, 1), 200);
 

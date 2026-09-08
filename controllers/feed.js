@@ -1,13 +1,8 @@
 const path = require("path");
 const { db } = require("../database/db");
 
-// See the matching note in controllers/profile.js — keeps stored paths as
-// portable forward-slash web paths regardless of the OS that wrote them.
 const toWebPath = (filePath) => filePath.split(path.sep).join("/");
 
-/* =========================
-   1. HOME FEED
-========================= */
 exports.getHomeFeed = (req, res) => {
   const userId = req.user.id;
 
@@ -43,13 +38,6 @@ exports.getHomeFeed = (req, res) => {
   });
 };
 
-
-/* =========================
-   POSTS BY A SINGLE USER
-   Used by the profile page: pass ?limit=3 for the "recent
-   posts" preview, or no limit for the full post history.
-   :id accepts 'me' for the logged-in user.
-========================= */
 exports.getUserPosts = (req, res) => {
   const viewerId = req.user.id;
   const targetId = req.params.id === "me" ? req.user.id : parseInt(req.params.id, 10);
@@ -98,9 +86,6 @@ exports.getUserPosts = (req, res) => {
 };
 
 
-/* =========================
-   NEW POST
-========================= */
 const MAX_POST_TITLE_LENGTH = 255;
 const MAX_POST_BODY_LENGTH = 5000;
 
@@ -108,9 +93,6 @@ exports.createPost = (req, res) => {
   const userId = req.user.id;
   let { title, body } = req.body;
 
-  // Hardening: multipart fields aren't covered by express.json()'s size
-  // limit, so without an explicit cap here a client could send an
-  // arbitrarily large title/body as a form field.
   title = typeof title === "string" ? title.trim().slice(0, MAX_POST_TITLE_LENGTH) : "";
   body = typeof body === "string" ? body.trim().slice(0, MAX_POST_BODY_LENGTH) : "";
 
@@ -154,9 +136,6 @@ exports.createPost = (req, res) => {
 };
 
 
-/* =========================
-   2. LIKE / UNLIKE
-========================= */
 exports.toggleLike = (req, res) => {
   const userId = req.user.id;
   const postId = parseInt(req.body.postId, 10);
@@ -182,7 +161,6 @@ exports.toggleLike = (req, res) => {
           }
         );
       }
-      // not liked → like
       else {
         db.run(
           "INSERT INTO likes (userID, postID) VALUES (?, ?)",
@@ -198,9 +176,6 @@ exports.toggleLike = (req, res) => {
 };
 
 
-/* =========================
-   3. COMMENTS
-========================= */
 const MAX_COMMENT_LENGTH = 500;
 
 exports.addComment = (req, res) => {
@@ -224,9 +199,6 @@ exports.addComment = (req, res) => {
   );
 };
 
-// BUG FIX / MISSING FEATURE: addComment could write comments but nothing
-// ever read them back, so they went straight into a black hole. This
-// endpoint lists a post's comments, newest last, with the commenter's name.
 exports.getComments = (req, res) => {
   const postId = parseInt(req.params.postId, 10);
   if (!Number.isInteger(postId)) {
@@ -250,9 +222,6 @@ exports.getComments = (req, res) => {
 };
 
 
-/* =========================
-   4. FOLLOW / UNFOLLOW
-========================= */
 exports.toggleFollow = (req, res) => {
   const followerId = req.user.id;
   const userId = parseInt(req.body.userId, 10);
@@ -297,9 +266,6 @@ exports.toggleFollow = (req, res) => {
   );
 };
 
-/* =========================
-   FOLLOWERS (people who follow me)
-========================= */
 exports.getFollowers = (req, res) => {
   const userId = req.params.id === 'me' ? req.user.id : parseInt(req.params.id, 10);
   if (!Number.isInteger(userId)) {
@@ -322,9 +288,6 @@ exports.getFollowers = (req, res) => {
 };
 
 
-/* =========================
-   FOLLOWING (people I follow)
-========================= */
 exports.getFollowing = (req, res) => {
   const userId = req.params.id === 'me' ? req.user.id : parseInt(req.params.id, 10);
   if (!Number.isInteger(userId)) {

@@ -9,13 +9,6 @@ if (!SECRET_KEY) {
   throw new Error("JWT_SECRET environment variable is not defined");
 }
 
-// OWASP A07 (Identification & Authentication Failures): per-account
-// lockout, layered on top of the existing IP-based rate limiter in
-// server.js. The IP limiter stops one machine hammering many accounts;
-// this stops one account being hammered from many machines (or a patient
-// attacker who just waits out the IP window). Five wrong passwords in a
-// row locks the account for 15 minutes, independent of where the attempts
-// came from.
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 
