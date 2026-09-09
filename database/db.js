@@ -276,20 +276,20 @@ function initialize_myDatabase() {
       (err) => { if (err) console.log("Error creating idx_audit_log_created", err.message); }
     );
 
-    console.log("All tables initialized successfully.");
+    db.run(`
+     CREATE TABLE IF NOT EXISTS comments
+      (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        userID INTEGER,
+        postID INTEGER,
+        body TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (userID) REFERENCES users (id) ON DELETE CASCADE,
+        FOREIGN KEY (postID) REFERENCES posts (id) ON DELETE CASCADE
+      )`);
+      console.log("All tables initialized successfully.");
   });
 
-  db.run(`
-    CREATE TABLE IF NOT EXISTS comments
-    (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      userID INTEGER,
-      postID INTEGER,
-      body TEXT,
-      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (userID) REFERENCES users (id) ON DELETE CASCADE,
-      FOREIGN KEY (postID) REFERENCES posts (id) ON DELETE CASCADE
-    )`)
 
   return db;
 }
