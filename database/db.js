@@ -10,8 +10,8 @@ const db = new sqlite3.Database(dbPath, (err) => {
     console.error("Database error ", err.message);
   } else {
     console.log("Connected to the database");
+    initialize_myDatabase();
   }
-  initialize_myDatabase();
 });
 
 

@@ -36,5 +36,8 @@
   "bugs": {
     "url": "https://github.com/Beltag-Paula/Social-Media-Website/issues"
   },
-  "homepage": "https://github.com/Beltag-Paula/Social-Media-Website#readme"
+  "homepage": "https://github.com/Beltag-Paula/Social-Media-Website#readme",
+  "allowScripts": {
+    "sqlite3@6.0.1": true
+  }
 }
