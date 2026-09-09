@@ -1,6 +1,26 @@
+<!--
+  Floating "active conversation" panel. This used to also contain the
+  conversation list/inbox, but that's moved to the persistent sidebar
+  (partials/chatSidebar.ejs) — this widget's only job now is: hold the
+  WebSocket connection, and show whichever single thread is currently
+  open. Real-time delivery goes over /ws/chat (chat/chatHub.js); anything
+  sent while that socket isn't open falls back to the REST endpoints in
+  controllers/messages.js.
+
+  Exposes window.openChatWith(userId, username) so the sidebar, a
+  profile's "Message" button, a post's 💬 button, etc. can all jump
+  straight into a DM with that person the same way.
+
+  Also the single owner of the page's WebSocket connection — rather than
+  the sidebar keeping its own (which would double the number of open
+  sockets per browser tab for no reason), this widget dispatches a
+  "dm:updated" event on window whenever something happens that should make
+  the sidebar re-fetch its lists (a message arrives, gets sent, or a
+  thread gets marked read). The sidebar just listens for that.
+-->
 <div class="chat-panel hidden" id="chatPanel">
   <div class="chat-panel-header">
-    <span id="chatPanelTitle">Messages</span>
+    <a href="#" id="chatPanelTitle" class="chat-panel-title-link">Messages</a>
     <button type="button" class="chat-close-btn" id="chatCloseBtn" aria-label="Close conversation">✕</button>
   </div>
 
@@ -44,6 +64,9 @@
         : d.toLocaleDateString([], { month: "short", day: "numeric" });
     }
 
+    // ---------- thread view ----------
+    // Built with createElement + textContent (never innerHTML), so a
+    // message body can never inject a script into either party's page.
     function renderMessageBubble(msg) {
       const row = document.createElement("div");
       row.className = "chat-msg-row " + (msg.senderID === myId ? "mine" : "theirs");
@@ -69,6 +92,7 @@
     async function openThread(userId, username) {
       currentThreadUserId = userId;
       panelTitle.textContent = username;
+      panelTitle.href = `/profile?id=${encodeURIComponent(userId)}`;
       typingIndicator.classList.add("hidden");
       threadMessagesEl.innerHTML = "<p class='no-comments'>Loading...</p>";
       panel.classList.remove("hidden");
@@ -87,7 +111,7 @@
         threadMessagesEl.innerHTML = "<p class='no-comments'>Couldn't load messages.</p>";
       }
 
-      notifyUpdated();
+      notifyUpdated(); // the fetch above just marked this thread read server-side
       threadInput.focus();
     }
 
@@ -96,6 +120,7 @@
       currentThreadUserId = null;
     });
 
+    // ---------- sending ----------
     async function sendCurrentMessage() {
       const body = threadInput.value.trim();
       if (!body || !currentThreadUserId) return;
@@ -106,6 +131,7 @@
         return;
       }
 
+      // Fallback: WebSocket isn't connected right now, use the REST route.
       try {
         const res = await fetch(CHAT_API, {
           method: "POST",
@@ -118,7 +144,7 @@
           appendMessage(msg);
           notifyUpdated();
         }
-      } catch (e) {}
+      } catch (e) { /* offline — message just doesn't send */ }
     }
 
     threadForm.addEventListener("submit", (e) => {
@@ -133,6 +159,7 @@
       typingTimeout = setTimeout(() => {}, 1000);
     });
 
+    // ---------- WebSocket ----------
     function connectSocket() {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat`);
@@ -148,7 +175,7 @@
           if (currentThreadUserId === otherPartyId && !panel.classList.contains("hidden")) {
             appendMessage(msg);
           }
-          notifyUpdated();
+          notifyUpdated(); // sidebar re-fetches either way — new last-message/unread count
         } else if (data.type === "typing") {
           if (currentThreadUserId === data.from && !panel.classList.contains("hidden")) {
             typingIndicator.classList.remove("hidden");
@@ -159,17 +186,19 @@
       });
 
       socket.addEventListener("close", () => {
+        // Retry after a short delay — covers dev-server restarts, brief
+        // network blips, laptop sleep/wake, etc.
         setTimeout(connectSocket, 3000);
       });
 
       socket.addEventListener("error", () => socket.close());
     }
 
-
+    // ---------- init ----------
     async function init() {
       try {
         const res = await fetch("/api/v1/me", { credentials: "include" });
-        if (!res.ok) return; 
+        if (!res.ok) return; // not logged in — widget just stays inert
         const me = await res.json();
         myId = me.id;
       } catch (e) {
@@ -177,7 +206,7 @@
       }
 
       connectSocket();
-      notifyUpdated();
+      notifyUpdated(); // let the sidebar do its first load
     }
 
     window.openChatWith = function (userId, username) {

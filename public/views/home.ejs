@@ -54,6 +54,12 @@
 
   <script nonce="<%= nonce %>">
     const API = "/api/v1";
+
+    // Same reasoning as profile.ejs's copy of this: a DB reference to a
+    // media file doesn't guarantee the file is actually still on disk, and
+    // without this a missing one rendered as raw alt text instead of
+    // failing gracefully. Property assignment (not inline onerror="") so
+    // it isn't blocked by the CSP in server.js the way inline attributes are.
     function withImageFallback(imgEl, fallbackSrc) {
       imgEl.onerror = function () {
         imgEl.onerror = null;
@@ -61,6 +67,7 @@
       };
     }
 
+    // ===== WHO AM I (drives the admin nav link) =====
     async function loadMe() {
       try {
         const res = await fetch(`${API}/me`, { credentials: "include" });
@@ -70,6 +77,9 @@
       } catch (e) { /* not logged in, nav link just stays hidden */ }
     }
 
+    // ===== FEED =====
+    // Kept in sync with what's on screen so post images can open the
+    // shared lightbox with working Prev/Next across the whole feed.
     let currentFeedImages = [];
 
     async function loadFeed() {
@@ -101,6 +111,8 @@
       });
     }
 
+    // Built with createElement + textContent (not innerHTML) so a post
+    // body or username can never inject a script into the page.
     function renderPost(post, imageIndex) {
       const card = document.createElement("div");
       card.className = "module post-module";
@@ -119,6 +131,7 @@
       nameSpan.textContent = post.title ? `${post.username} — ${post.title}` : post.username;
       titleBar.appendChild(nameSpan);
 
+      // A quick way into a DM with the poster, right from their post.
       if (typeof window.openChatWith === "function") {
         const msgBtn = document.createElement("button");
         msgBtn.type = "button";
@@ -164,7 +177,7 @@
       meta.textContent = new Date(post.createdAt).toLocaleString();
       body.appendChild(meta);
 
-
+      // ----- actions: like + comment toggle -----
       const actionBar = document.createElement("div");
       actionBar.className = "action-bar";
 
@@ -192,7 +205,7 @@
       body.appendChild(actionBar);
       body.appendChild(commentToggle);
 
-
+      // ----- comments box (built once, shown/hidden + lazy loaded) -----
       const commentsBox = document.createElement("div");
       commentsBox.className = "comments-box";
       commentsBox.style.display = "none";
@@ -234,15 +247,16 @@
         comments.forEach(c => {
           const row = document.createElement("div");
           row.className = "comment-row";
-          const userSpan = document.createElement("span");
-          userSpan.className = "comment-user";
-          userSpan.textContent = c.username;
+          const userLink = document.createElement("a");
+          userLink.className = "comment-user";
+          userLink.href = `/profile?id=${encodeURIComponent(c.userId)}`;
+          userLink.textContent = c.username;
           const bodySpan = document.createElement("span");
           bodySpan.textContent = c.body;
           const timeSpan = document.createElement("span");
           timeSpan.className = "comment-time";
           timeSpan.textContent = new Date(c.createdAt).toLocaleString();
-          row.appendChild(userSpan);
+          row.appendChild(userLink);
           row.appendChild(bodySpan);
           row.appendChild(timeSpan);
           commentsList.appendChild(row);
@@ -282,6 +296,7 @@
       return card;
     }
 
+    // ===== NEW POST =====
     document.getElementById("newPostForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const title = document.getElementById("postTitle").value.trim();

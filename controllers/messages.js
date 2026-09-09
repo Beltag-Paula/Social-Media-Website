@@ -9,6 +9,17 @@ function sanitizeBody(raw) {
   return trimmed.length > MAX_MESSAGE_LENGTH ? trimmed.slice(0, MAX_MESSAGE_LENGTH) : trimmed;
 }
 
+// Persists a single DM. This is the ONE place a message ever gets written,
+// shared by the REST endpoint below and the WebSocket handler in
+// chat/chatHub.js, so both paths get identical validation — no route can
+// accidentally skip a check the other one has.
+//
+// Privacy: a message only ever has exactly one sender and one receiver, and
+// every read path below (getThread/getConversations) filters strictly by
+// req.user.id on one side of the pair. There is no "public" or "group"
+// read path, and no admin bypass — this table is never queried without a
+// participant constraint, so a conversation is only ever visible to the
+// two people in it.
 function persistMessage({ senderID, receiverID, body }) {
   return new Promise((resolve, reject) => {
     const clean = sanitizeBody(body);
@@ -41,6 +52,10 @@ function persistMessage({ senderID, receiverID, body }) {
 
 exports.persistMessage = persistMessage;
 
+// POST /api/v1/messages  { to, body }
+// REST fallback for sending — works even if the sender's WebSocket isn't
+// connected. If chatHub is available (server.js wires it into
+// app.locals), also push the message live to the recipient.
 exports.sendMessage = async (req, res) => {
   try {
     const message = await persistMessage({
@@ -58,6 +73,11 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
+// GET /api/v1/messages/:userId?before=<id>&limit=30
+// Returns the DM thread between me and :userId, oldest first. The WHERE
+// clause hard-codes req.user.id (never a client-supplied value) on both
+// sides of the OR, so there is no parameter combination that reads a
+// thread you're not part of.
 exports.getThread = (req, res) => {
   const me = req.user.id;
   const other = parseInt(req.params.userId, 10);
@@ -86,12 +106,18 @@ exports.getThread = (req, res) => {
     res.json(rows.reverse());
   });
 
+  // Mark the other person's messages to me as read. Fire-and-forget: this
+  // shouldn't block or fail the actual thread response above.
   db.run(
     "UPDATE messages SET readAt = CURRENT_TIMESTAMP WHERE senderID = ? AND receiverID = ? AND readAt IS NULL",
     [other, me]
   );
 };
 
+// GET /api/v1/messages
+// Inbox: one row per person you've exchanged DMs with, most recent
+// message first, with an unread count. Everything here is scoped to
+// req.user.id — there's no way to request someone else's inbox.
 exports.getConversations = (req, res) => {
   const me = req.user.id;
 
@@ -129,6 +155,14 @@ exports.getConversations = (req, res) => {
   });
 };
 
+// GET /api/v1/messages/suggestions
+// "People" list for the DM sidebar — people you have an actual social
+// connection to (you follow them, or they follow you) but haven't
+// messaged yet. Deliberately NOT every registered user: showing every
+// signup (including ones still pending admin approval, or accounts you've
+// never interacted with) would turn this into a directory for cold-DMing
+// strangers, which is a spam/harassment vector, not a feature. Follow is
+// the one signal in this app that means "I know who this is."
 exports.getSuggestions = (req, res) => {
   const me = req.user.id;
 

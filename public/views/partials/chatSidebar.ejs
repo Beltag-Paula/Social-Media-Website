@@ -1,3 +1,30 @@
+<!--
+  Persistent, collapsible DM sidebar — the "who can I message" browsing
+  surface. Split into two sections:
+    - CONVERSATIONS: people you've already exchanged DMs with, most
+      recent first, with a red unread badge on their avatar.
+    - PEOPLE: people you follow or who follow you that you haven't
+      messaged yet (see controllers/messages.js#getSuggestions for why
+      this is scoped to follows rather than every signup — it's meant to
+      be "people you actually know", not a directory for cold-DMing
+      strangers).
+
+  Toggled by the ☰ "sandwich" button in the nav (partials/nav.ejs), which
+  swaps to ✕ while open; state (shown/hidden) is remembered in
+  localStorage. Clicking any row hands off to window.openChatWith(...)
+  from partials/chatWidget.ejs, which owns the actual conversation thread
+  + WebSocket connection — this file only ever reads the two list
+  endpoints and re-fetches them whenever chatWidget dispatches a
+  "dm:updated" event (new message, sent message, thread marked read), so
+  there's exactly one WebSocket connection per tab, not two.
+
+  Unread indicator lives in two places that never show at once: the ☰
+  button's aggregate red badge (visible while the sidebar is CLOSED — you
+  know something arrived, without yet knowing who) and a per-avatar badge
+  on each conversation row inside the sidebar (visible while it's OPEN —
+  at that point the aggregate number would just be redundant with what's
+  already on screen).
+-->
 <aside class="chat-sidebar hidden" id="chatSidebar" aria-label="Direct messages">
   <div class="chat-sidebar-header">
     <span>Messages</span>
@@ -29,8 +56,16 @@
     const conversationsEl = document.getElementById("sidebarConversations");
     const peopleEl = document.getElementById("sidebarPeople");
 
+    // Last count fetched from the server, independent of whether it's
+    // currently being displayed anywhere — lets the badge react instantly
+    // to the sidebar opening/closing without needing a fresh network
+    // round-trip just to know whether to show or hide itself.
     let lastTotalUnread = 0;
 
+    // The aggregate badge on the ☰ button only makes sense while the
+    // sidebar is closed — once it's open, every unread conversation
+    // already has its own badge on screen, so showing both would just be
+    // the same information twice.
     function updateAggregateBadge() {
       const sidebarClosed = sidebar.classList.contains("hidden");
       if (sidebarClosed && lastTotalUnread > 0) {
@@ -41,9 +76,15 @@
       }
     }
 
+    // ---------- show/hide, persisted across page loads ----------
     function applyVisibility(visible) {
       sidebar.classList.toggle("hidden", !visible);
       document.body.classList.toggle("chat-sidebar-open", visible);
+      // The sidebar animates off-screen via transform (not display:none,
+      // which can't transition) — `inert` + aria-hidden keep it out of
+      // the tab order and screen readers while it's sitting off-canvas,
+      // so hiding it actually hides it for keyboard/AT users too, not
+      // just visually.
       sidebar.inert = !visible;
       sidebar.setAttribute("aria-hidden", String(!visible));
       if (toggleBtn) toggleBtn.setAttribute("aria-expanded", String(visible));
@@ -56,6 +97,9 @@
       try { localStorage.setItem(STORAGE_KEY, visible ? "1" : "0"); } catch (e) { /* storage disabled — just won't persist */ }
     }
 
+    // Default: shown on a normal desktop-width screen, hidden on anything
+    // narrower (phones/small tablets) so it doesn't eat the page on first
+    // visit. After that, whatever the person last chose wins.
     let initiallyVisible = window.matchMedia("(min-width: 900px)").matches;
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
@@ -70,6 +114,7 @@
     }
     closeBtn.addEventListener("click", () => setVisible(false));
 
+    // ---------- rendering ----------
     function timeLabel(iso) {
       const d = new Date(iso.replace(" ", "T") + "Z");
       if (Number.isNaN(d.getTime())) return "";
@@ -80,12 +125,17 @@
         : d.toLocaleDateString([], { month: "short", day: "numeric" });
     }
 
+    // Built with createElement + textContent throughout — a username or
+    // message preview is someone else's input, so it can never become
+    // innerHTML here.
     function renderAvatar(person, unreadCount) {
       const wrap = document.createElement("div");
       wrap.className = "sidebar-avatar-wrap";
 
       const img = document.createElement("img");
       img.className = "sidebar-avatar";
+      // Property assignment, not inline onerror="" (CSP-blocked — see the
+      // matching helper/comment in profile.ejs and home.ejs).
       img.onerror = function () {
         img.onerror = null;
         img.src = "/default-avatar.svg";
@@ -168,8 +218,15 @@
       return row;
     }
 
+    // ---------- data loading ----------
     let currentUserId = null;
 
+    // chatWidget.ejs's init() can dispatch "dm:updated" before this file's
+    // own /api/v1/me call resolves (both fetch it independently, in
+    // parallel, and there's no guaranteed order). Routing every load
+    // through this shared promise means loadConversations() never renders
+    // the "You: " prefix using a still-null currentUserId — it just waits
+    // for the one in-flight identity fetch, instead of firing a second one.
     const meReady = (async () => {
       try {
         const res = await fetch("/api/v1/me", { credentials: "include" });
@@ -230,9 +287,10 @@
 
     window.addEventListener("dm:updated", refreshAll);
 
+    // ---------- init ----------
     (async function init() {
       const me = await meReady;
-      if (!me) return;
+      if (!me) return; // not logged in — sidebar stays empty/inert
       refreshAll();
     })();
   })();

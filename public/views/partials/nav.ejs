@@ -19,6 +19,13 @@
 </nav>
 
 <script nonce="<%= nonce %>">
+  // SECURITY CHANGE: this used to be onclick="executeGlobalSearch()" on the
+  // button itself. Inline event-handler attributes run under the same CSP
+  // rule as inline <script> tags and can't carry a nonce, so a strict
+  // script-src (see server.js) blocks them outright — the fix is just to
+  // attach the listener from script instead. executeGlobalSearch() itself
+  // is still defined further down each page's own <script>, which runs
+  // before this button can ever actually be clicked.
   document.getElementById("globalSearchBtn").addEventListener("click", () => {
     if (typeof executeGlobalSearch === "function") executeGlobalSearch();
   });

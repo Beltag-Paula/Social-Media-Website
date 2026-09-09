@@ -1,5 +1,18 @@
 <script nonce="<%= nonce %>">
+  // ===== FILE DROPZONE (shared across pages) =====
+  // Vanilla drag-and-drop, following the pattern from MDN's File drag and
+  // drop guide: prevent the browser's default open-this-file behavior,
+  // toggle a highlight class while a file is dragged over, and read the
+  // dropped file from event.dataTransfer.files on "drop".
+  //
+  // The dropped (or click-picked) file is assigned back onto the real
+  // <input type="file"> via the DataTransfer API, and a "change" event is
+  // dispatched on it — so any existing `input.onchange = ...` handler, or
+  // code that reads `input.files[0]` on form submit, keeps working exactly
+  // as before. This is purely a front end for the same input.
   (function () {
+    // Stop the browser from navigating away / opening the file if it's
+    // dropped somewhere outside a dropzone.
     if (!window.__dropGuardInstalled) {
       window.__dropGuardInstalled = true;
       ["dragover", "drop"].forEach((evtName) => {
@@ -32,6 +45,7 @@
         assignFileToInput(file);
       });
 
+      // Click or keyboard (Enter/Space) opens the native file picker
       dropzoneEl.addEventListener("click", () => inputEl.click());
       dropzoneEl.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") {

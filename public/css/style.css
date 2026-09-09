@@ -921,7 +921,15 @@ button.post-message-btn {
   letter-spacing: 0.03em;
   color: var(--text);
 }
-.chat-panel-header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-panel-title-link {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+  text-decoration: none;
+}
+.chat-panel-title-link:hover { color: var(--accent); text-decoration: underline; }
 .chat-close-btn {
   background: transparent;
   border: none;
@@ -1152,7 +1160,24 @@ button.post-message-btn {
   aspect-ratio: 1 / 1;
   background: var(--content-bg-alt);
 }
-.gallery-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-tile img, .gallery-tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gallery-tile-play {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(15,23,32,0.72);
+  border: 1px solid var(--border-light);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
 .gallery-tile-tag {
   position: absolute;
   left: 4px;
@@ -1210,6 +1235,13 @@ body.lightbox-open { overflow: hidden; }
   object-fit: contain;
   border-radius: 3px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+}
+.lightbox-video {
+  max-width: 100%;
+  max-height: calc(100vh - 100px);
+  border-radius: 3px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  background: #000;
 }
 .lightbox-caption {
   position: absolute;

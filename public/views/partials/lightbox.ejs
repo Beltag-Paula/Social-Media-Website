@@ -1,8 +1,17 @@
-<div class="lightbox hidden" id="lightboxOverlay" role="dialog" aria-modal="true" aria-label="Image viewer">
+<!--
+  Shared full-screen media viewer. Any page can call
+  window.__lightbox.open(items, startIndex) where items is an array of
+  { src, caption?, type? } — type: "video" plays it with controls,
+  anything else (or omitted) is treated as an image. Clicking a thumbnail
+  opens it full-size with Prev/Next through the rest of that same set
+  (posts grid, profile gallery, home feed, etc. each pass their own set).
+-->
+<div class="lightbox hidden" id="lightboxOverlay" role="dialog" aria-modal="true" aria-label="Media viewer">
   <button type="button" class="lightbox-close" id="lightboxClose" aria-label="Close">✕</button>
-  <button type="button" class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous image">‹</button>
+  <button type="button" class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous">‹</button>
   <img class="lightbox-image" id="lightboxImage" src="" alt="" />
-  <button type="button" class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next image">›</button>
+  <video class="lightbox-video hidden" id="lightboxVideo" controls></video>
+  <button type="button" class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next">›</button>
   <p class="lightbox-caption" id="lightboxCaption"></p>
 </div>
 
@@ -10,6 +19,7 @@
   (function () {
     const overlay = document.getElementById("lightboxOverlay");
     const imageEl = document.getElementById("lightboxImage");
+    const videoEl = document.getElementById("lightboxVideo");
     const captionEl = document.getElementById("lightboxCaption");
     const closeBtn = document.getElementById("lightboxClose");
     const prevBtn = document.getElementById("lightboxPrev");
@@ -18,11 +28,31 @@
     let items = [];
     let index = 0;
 
+    // Always fully stop the video (not just hide it) before showing
+    // something else — otherwise it keeps playing, invisibly, with audio,
+    // behind whatever the lightbox shows next.
+    function stopVideo() {
+      videoEl.pause();
+      videoEl.removeAttribute("src");
+      videoEl.load();
+    }
+
     function render() {
       const item = items[index];
       if (!item) return;
-      imageEl.src = item.src;
-      imageEl.alt = item.caption || "";
+
+      if (item.type === "video") {
+        imageEl.classList.add("hidden");
+        videoEl.classList.remove("hidden");
+        videoEl.src = item.src;
+      } else {
+        stopVideo();
+        videoEl.classList.add("hidden");
+        imageEl.classList.remove("hidden");
+        imageEl.src = item.src;
+        imageEl.alt = item.caption || "";
+      }
+
       captionEl.textContent = item.caption || "";
       captionEl.classList.toggle("hidden", !item.caption);
       const multi = items.length > 1;
@@ -43,6 +73,7 @@
       overlay.classList.add("hidden");
       document.body.classList.remove("lightbox-open");
       imageEl.src = "";
+      stopVideo();
     }
 
     function step(delta) {
@@ -62,6 +93,10 @@
     document.addEventListener("keydown", (e) => {
       if (overlay.classList.contains("hidden")) return;
       if (e.key === "Escape") close();
+      // Video controls (seeking, volume) also use arrow keys — only treat
+      // them as prev/next navigation when the video itself isn't focused,
+      // so someone scrubbing playback doesn't accidentally jump items.
+      else if (document.activeElement === videoEl) return;
       else if (e.key === "ArrowLeft") step(-1);
       else if (e.key === "ArrowRight") step(1);
     });

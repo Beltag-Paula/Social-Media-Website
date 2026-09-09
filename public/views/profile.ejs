@@ -81,9 +81,14 @@
     <div class="module field-block" id="galleryModule">
       <div class="module-title">Photo Gallery</div>
       <div class="module-body">
-        <p class="gallery-hint">Every avatar &amp; banner picture ever uploaded here — click one to view it, or (on your own profile) reuse it.</p>
+        <p class="gallery-hint">Every avatar, banner &amp; intro video ever uploaded here — click one for a full slideshow, or (on your own profile) reuse a photo.</p>
         <div class="gallery-grid" id="galleryGrid">
           <p class="no-posts">Loading gallery...</p>
+        </div>
+        <div class="profile-posts-footer">
+          <button class="ghost view-all-btn js-hidden" id="toggleGalleryBtn" type="button">
+            <span id="toggleGalleryIcon">+</span> <span id="toggleGalleryLabel">View full gallery</span>
+          </button>
         </div>
       </div>
     </div>
@@ -419,36 +424,63 @@
     });
 
     // ===== GALLERY =====
-    // GALLERY FIX: past avatars/banners used to be silently orphaned the
-    // moment you replaced them — the file stayed on disk and the DB row
-    // stayed in `media`, but nothing in the app ever pointed at it again,
-    // so there was no way to see or reuse it. /api/v1/profile/:id/gallery
-    // (backed by the new media.role column) surfaces every one of them.
-    const ROLE_LABEL = { avatar: "Avatar", banner: "Banner", profile: "Old profile photo" };
+    // GALLERY FIX: past avatars/banners/intro videos used to be silently
+    // orphaned the moment you replaced them — the file stayed on disk and
+    // the DB row stayed in `media`, but nothing in the app ever pointed at
+    // it again, so there was no way to see or reuse it.
+    // /api/v1/profile/:id/gallery (backed by the media.role column) now
+    // surfaces every one of them, images and videos alike.
+    const ROLE_LABEL_IMAGE = { avatar: "Avatar", banner: "Banner", profile: "Old profile photo" };
+    const GALLERY_PREVIEW_LIMIT = 5;
+    let galleryItems = [];
+    let galleryExpanded = false;
+
+    function galleryItemLabel(item) {
+      if (item.mediaType === 1) return item.role === "video" ? "Intro video" : "Old video";
+      return ROLE_LABEL_IMAGE[item.role] || "Photo";
+    }
 
     function renderGalleryTile(item, index, allItems) {
       const tile = document.createElement("div");
       tile.className = "gallery-tile";
+      const isVideo = item.mediaType === 1;
+      const label = galleryItemLabel(item);
 
-      const img = document.createElement("img");
-      const galleryFallback = item.role === "avatar" ? "/default-avatar.svg"
-        : item.role === "banner" ? "/default-banner.svg"
-        : "/default-image.svg";
-      withImageFallback(img, galleryFallback);
-      img.src = `/${item.filePath}`;
-      img.alt = ROLE_LABEL[item.role] || "Photo";
-      img.loading = "lazy";
-      tile.appendChild(img);
+      if (isVideo) {
+        const video = document.createElement("video");
+        video.src = `/${item.filePath}`;
+        video.preload = "metadata"; // shows the first frame as a thumbnail without downloading/playing the whole thing
+        video.muted = true;
+        video.setAttribute("aria-label", label);
+        tile.appendChild(video);
+
+        const playIcon = document.createElement("span");
+        playIcon.className = "gallery-tile-play";
+        playIcon.textContent = "▶";
+        playIcon.setAttribute("aria-hidden", "true");
+        tile.appendChild(playIcon);
+      } else {
+        const img = document.createElement("img");
+        const galleryFallback = item.role === "avatar" ? "/default-avatar.svg"
+          : item.role === "banner" ? "/default-banner.svg"
+          : "/default-image.svg";
+        withImageFallback(img, galleryFallback);
+        img.src = `/${item.filePath}`;
+        img.alt = label;
+        img.loading = "lazy";
+        tile.appendChild(img);
+      }
 
       const tag = document.createElement("span");
       tag.className = "gallery-tile-tag";
-      tag.textContent = ROLE_LABEL[item.role] || "Photo";
+      tag.textContent = label;
       tile.appendChild(tag);
 
       tile.addEventListener("click", () => {
         const lightboxItems = allItems.map(i => ({
           src: `/${i.filePath}`,
-          caption: `${ROLE_LABEL[i.role] || "Photo"} · ${new Date(i.createdAt).toLocaleDateString()}`,
+          type: i.mediaType === 1 ? "video" : "image",
+          caption: `${galleryItemLabel(i)} · ${new Date(i.createdAt).toLocaleDateString()}`,
         }));
         window.__lightbox.open(lightboxItems, index);
       });
@@ -457,31 +489,43 @@
         const actions = document.createElement("div");
         actions.className = "gallery-tile-actions";
 
-        const setAvatarBtn = document.createElement("button");
-        setAvatarBtn.type = "button";
-        setAvatarBtn.textContent = "Set as avatar";
-        setAvatarBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          selectGalleryImage("avatar", item.id);
-        });
+        if (isVideo) {
+          const setVideoBtn = document.createElement("button");
+          setVideoBtn.type = "button";
+          setVideoBtn.textContent = "Set as intro video";
+          setVideoBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            selectGalleryMedia("video", item.id);
+          });
+          actions.appendChild(setVideoBtn);
+        } else {
+          const setAvatarBtn = document.createElement("button");
+          setAvatarBtn.type = "button";
+          setAvatarBtn.textContent = "Set as avatar";
+          setAvatarBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            selectGalleryMedia("avatar", item.id);
+          });
 
-        const setBannerBtn = document.createElement("button");
-        setBannerBtn.type = "button";
-        setBannerBtn.textContent = "Set as banner";
-        setBannerBtn.addEventListener("click", (e) => {
-          e.stopPropagation();
-          selectGalleryImage("banner", item.id);
-        });
+          const setBannerBtn = document.createElement("button");
+          setBannerBtn.type = "button";
+          setBannerBtn.textContent = "Set as banner";
+          setBannerBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            selectGalleryMedia("banner", item.id);
+          });
 
-        actions.appendChild(setAvatarBtn);
-        actions.appendChild(setBannerBtn);
+          actions.appendChild(setAvatarBtn);
+          actions.appendChild(setBannerBtn);
+        }
+
         tile.appendChild(actions);
       }
 
       return tile;
     }
 
-    async function selectGalleryImage(kind, mediaId) {
+    async function selectGalleryMedia(kind, mediaId) {
       const res = await fetch(`${API_BASE}/profile/${kind}/select`, {
         method: "POST",
         credentials: "include",
@@ -496,19 +540,43 @@
       }
     }
 
-    async function loadGallery() {
+    function renderGalleryGrid() {
       const grid = document.getElementById("galleryGrid");
-      const res = await fetch(`${API_BASE}/profile/${profileUserId || "me"}/gallery`, { credentials: "include" });
-      if (!res.ok) return;
-      const items = await res.json();
+      const toggleBtn = document.getElementById("toggleGalleryBtn");
       grid.innerHTML = "";
 
-      if (!Array.isArray(items) || items.length === 0) {
-        grid.innerHTML = "<p class='no-posts'>No photos yet.</p>";
+      if (galleryItems.length === 0) {
+        grid.innerHTML = "<p class='no-posts'>No photos or videos yet.</p>";
+        toggleBtn.classList.add("js-hidden");
         return;
       }
 
-      items.forEach((item, index) => grid.appendChild(renderGalleryTile(item, index, items)));
+      const visible = galleryExpanded ? galleryItems : galleryItems.slice(0, GALLERY_PREVIEW_LIMIT);
+      visible.forEach((item, index) => grid.appendChild(renderGalleryTile(item, index, galleryItems)));
+
+      if (galleryItems.length <= GALLERY_PREVIEW_LIMIT) {
+        toggleBtn.classList.add("js-hidden");
+      } else {
+        toggleBtn.classList.remove("js-hidden");
+      }
+      document.getElementById("toggleGalleryIcon").textContent = galleryExpanded ? "−" : "+";
+      document.getElementById("toggleGalleryLabel").textContent = galleryExpanded
+        ? "Show less"
+        : `View full gallery (${galleryItems.length})`;
+    }
+
+    document.getElementById("toggleGalleryBtn").addEventListener("click", () => {
+      galleryExpanded = !galleryExpanded;
+      renderGalleryGrid();
+    });
+
+    async function loadGallery() {
+      const res = await fetch(`${API_BASE}/profile/${profileUserId || "me"}/gallery`, { credentials: "include" });
+      if (!res.ok) return;
+      const items = await res.json();
+      galleryItems = Array.isArray(items) ? items : [];
+      galleryExpanded = false;
+      renderGalleryGrid();
     }
 
     async function executeGlobalSearch() {
