@@ -37,6 +37,8 @@ const PORT = process.env.PORT || 8000;
 if (process.env.TRUST_PROXY === "1") {
   app.set("trust proxy", 1);
 }
+console.log("TRUST_PROXY env:", process.env.TRUST_PROXY);
+console.log("Express trust proxy:", app.get("trust proxy"));
 
 // SECURITY CHANGE: stop advertising "X-Powered-By: Express" — it costs
 // nothing to remove and gives an attacker one fewer free hint about the
