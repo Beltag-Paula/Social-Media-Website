@@ -147,6 +147,14 @@ wss.on("connection", (socket, request, user) => {
 
 function attachChatWebSocket(server) {
   server.on("upgrade", (request, socket, head) => {
+    console.log("[WS Upgrade]", {
+      url: request.url,
+      origin: request.headers.origin,
+      host: request.headers.host,
+      forwardedProto: request.headers["x-forwarded-proto"],
+      hasCookie: Boolean(request.headers.cookie),
+      hasAuthorization: Boolean(request.headers.authorization),
+    });
     if (request.headers.origin !== APP_ORIGIN) {
       socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
       socket.destroy();
