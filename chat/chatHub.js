@@ -72,6 +72,11 @@ function attachChatServer(httpServer) {
   }
 
   httpServer.on("upgrade", (request, socket, head) => {
+    console.log("[WS] Upgrade request:", {
+      origin: request.headers.origin,
+      allowedOrigins,
+      hasCookie: Boolean(request.headers.cookie),
+    });
     let pathname;
     try {
       pathname = new URL(request.url, "http://localhost").pathname;
@@ -91,6 +96,11 @@ function attachChatServer(httpServer) {
     // WebSocket equivalent of a CORS check.
     const origin = request.headers.origin;
     if (allowedOrigins && (!origin || !allowedOrigins.includes(origin))) {
+      console.warn("[WS] Rejected: origin not allowed", {
+        origin,
+        allowedOrigins,
+      });
+
       socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
       socket.destroy();
       return;
@@ -115,6 +125,13 @@ function attachChatServer(httpServer) {
       // authMiddleware does for REST — the socket handshake needs it too.
       db.get("SELECT status FROM users WHERE id = ?", [decoded.id], (dbErr, user) => {
         if (dbErr || !user || user.status === 2) {
+          console.warn("[WS] Rejected: user validation", {
+            userId: decoded.id,
+            dbError: dbErr?.message,
+            userFound: Boolean(user),
+            status: user?.status,
+          });
+
           socket.write("HTTP/1.1 403 Forbidden\r\n\r\n");
           socket.destroy();
           return;
